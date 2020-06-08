@@ -20,15 +20,6 @@ buildscript {
     // log the current JVM version.
     println "Build JVM Version is : " + Jvm.current()
     repositories {
-        mavenLocal()
-        jcenter()
-        mavenCentral()
-        maven {
-            url "https://repository.apache.org/snapshots"
-        }
-        maven {
-            url "https://oss.jfrog.org/jfrog-dependencies"
-        }
         maven {
             url "https://plugins.gradle.org/m2/"
         }
@@ -56,7 +47,7 @@ allprojects {
             compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             compileOnly 'org.projectlombok:lombok:' + lombokVersion
-            
+
             testCompileOnly 'org.projectlombok:lombok:' + lombokVersion
             annotationProcessor 'org.projectlombok:lombok:' + lombokVersion
             testAnnotationProcessor 'org.projectlombok:lombok:' + lombokVersion
@@ -84,9 +75,18 @@ allprojects {
     apply from: "$rootDir/gradle/rat.gradle"
 
     repositories {
+        mavenLocal()
         jcenter()
         mavenCentral()
-        mavenLocal()
+        maven {
+            url "https://oss.jfrog.org/jfrog-dependencies"
+        }
+        maven {
+            url "https://repository.apache.org/snapshots"
+        }
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
 
     gradle.projectsEvaluated {
@@ -173,7 +173,6 @@ project('contract') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
-
     }
 
     javadoc {
@@ -184,17 +183,6 @@ project('contract') {
         exclude "**/impl/**";
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
-}
-
-def getProjectVersion() {
-    String ver = schemaregistryVersion
-    if (grgit && ver.contains("-SNAPSHOT")) {
-        String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
-        def count = grgit.log(includes:['HEAD']).size()
-        def commitId = "${grgit.head().abbreviatedId}"
-        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
-    }
-    return ver
 }
 
 project('serializers') {
@@ -221,5 +209,265 @@ project('serializers') {
         failOnError = false
         exclude "**/impl/**";
         options.addBooleanOption("Xdoclint:all,-reference", true)
+    }
+}
+
+project('server') {
+    sourceSets {
+        main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/resources"
+    }
+
+    apply plugin: 'application'
+    applicationName = "schema-registry"
+    mainClassName = "io.pravega.schemaregistry.service.Main"
+    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/schema-registry.config.properties",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=schemaregistry"]
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+    applicationDistribution.from('src/conf') {
+        into "conf"
+        rename "application.conf", "schemaregistry.conf"
+    }
+
+    applicationDistribution.into('') {
+        def pluginDirBase = new File('/tmp/dummy-dir')
+        pluginDirBase.mkdirs()
+        def logDir = new File(pluginDirBase.absolutePath + '/pluginlib')
+        logDir.mkdirs()
+
+        from {pluginDirBase}
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':contract')
+        compile group: 'io.pravega', name: 'pravega-client', version: pravegaVersion
+        compile group: 'io.pravega', name: 'pravega-controller', version: pravegaVersion
+        compile group: 'org.apache.avro', name: 'avro', version: avroVersion
+        compile group: 'org.apache.avro', name: 'avro-protobuf', version: avroProtobufVersion
+        compile group: 'com.google.protobuf', name: 'protobuf-java-util', version: protobufUtilVersion
+        compile group: 'com.google.protobuf', name: 'protobuf-java', version: protobufProtocVersion
+        compile group: 'com.fasterxml.jackson.module', name: 'jackson-module-jsonSchema', version: jacksonVersion
+        compile (group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion) {
+            exclude group: 'javax.ws.rs', module: 'jsr311-api'
+        }
+        testCompile group: 'io.pravega', name: 'pravega-test-testcommon', version: pravegaVersion
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-grizzly2', version: jerseyVersion
+    }
+
+    javadoc {
+        title = "Registry Server"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = false
+        exclude "**/impl/**";
+        options.addBooleanOption("Xdoclint:all,-reference", true)
+    }
+}
+
+project('samples') {
+    sourceSets {
+        test.resources.srcDirs += "$rootDir/resources"
+        test.java.srcDir project(':server').file("src/test/java")
+    }
+    compileTestJava.dependsOn tasks.getByPath(':server:testClasses')
+    dependencies {
+        compile project(':common')
+        compile project(':contract')
+        compile project(':client')
+        compile project(':server') 
+        compile project(':serializers')
+        testCompile group: 'io.pravega', name: 'pravega-test-testcommon', version: pravegaVersion
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile files(project(':server').sourceSets.test.output.classesDir)
+        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-grizzly2', version: jerseyVersion
+    }
+
+    javadoc {
+        title = "Samples"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = false
+        exclude "**/impl/**";
+        options.addBooleanOption("Xdoclint:all,-reference", true)
+    }
+}
+
+def getProjectVersion() {
+    String ver = schemaregistryVersion
+    if (grgit && ver.contains("-SNAPSHOT")) {
+        String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
+        def count = grgit.log(includes:['HEAD']).size()
+        def commitId = "${grgit.head().abbreviatedId}"
+        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
+    }
+    return ver
+}
+
+apply plugin: 'distribution'
+distributions {
+    main {
+        baseName = "schema-registry"
+        contents {
+            duplicatesStrategy = "exclude"
+            from ("dist/conf") {
+                into "conf"
+            }
+            from ("config") {
+                into "conf"
+            }
+            from (project(":server").installDist) {
+                exclude "logback.xml"
+            }
+            from 'LICENSE'
+            from 'NOTICE'
+        }
+    }
+    client {
+        baseName = "schema-registry-client"
+        contents {
+            from { project(":client").configurations.runtime }
+            from { project(":client").configurations.runtime.allArtifacts.files }
+            from 'LICENSE'
+            from 'NOTICE'
+        }
+    }
+}
+
+task sourceCopy(type: Copy) {
+    from rootDir
+    into 'source'
+}
+
+task sourceTar(type: Tar) {
+    dependsOn 'sourceCopy'
+    from  'source'
+    destinationDir = file('sourceArtifacts')
+    extension = 'tgz'
+    compression = Compression.GZIP
+}
+
+task javadocs(type: Javadoc) {
+    description = "Generate main pravega javadoc"
+
+    // Include names of any project that is to be included in the javadoc distribution
+    ext.projects = [':client']
+    options.links("http://docs.oracle.com/javase/10/docs/api/");
+    title = "Pravega API"
+    destinationDir = file("${buildDir}/javadocs")
+    source = files(projects.collect {
+        project(it).sourceSets.main.allJava
+    })
+    classpath = files(projects.collect {
+        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    })
+    failOnError = true
+    exclude "**/impl/**"
+    options.addBooleanOption("Xdoclint:all,-reference", true)
+}
+
+task publishAllJars() {
+    dependsOn ':client:publish'
+    dependsOn ':common:publish'
+    dependsOn ':contract:publish'
+    dependsOn ':server:publish'
+    dependsOn ':serializers:publish'
+}
+
+task prepareRegistryImage(type: Copy) {
+    into "${buildDir}/docker/pravega-schema-registry"
+    from "docker/pravega-schema-registry"
+    from (installDist) {
+        into "pravega-schema-registry"
+        exclude "**/*.bat"
+    }
+}
+
+task buildRegistryImage(type: DockerBuildTask, dependsOn: prepareRegistryImage) {
+    baseTag = schemaregistryBaseTag
+    dockerDir = prepareRegistryImage.destinationDir.absolutePath
+    if (JavaVersion.current().isJava11Compatible()) {
+        dockerFile = "${dockerDir}/Dockerfile-java-11"
+    } else {
+        dockerFile = "${dockerDir}/Dockerfile"
+    }
+}
+
+task docker(dependsOn: buildRegistryImage) {
+    description = "Builds all docker images"
+}
+
+task pushRegistryImage(type: DockerPushTask) {
+    // No explicit dependency on building the pravega image
+    mustRunAfter buildRegistryImage
+    tag = "${schemaregistryBaseTag}:${version}"
+}
+
+task dockerPush(dependsOn: pushRegistryImage) {
+    description = "Push all docker images"
+}
+
+/**
+ * Task for building a docker image
+ */
+class DockerBuildTask extends Exec {
+    String baseTag
+    String dockerDir
+    String dockerFile
+
+    DockerBuildTask() {
+        executable project.dockerExecutable
+        args "build"
+        args "--pull"
+        args "-t", "${->baseTag}:${project.version}"
+        args "-t", "${->baseTag}:latest"
+        args "-f", "${->dockerFile}"
+        args "${->dockerDir}"
+    }
+}
+
+/**
+ * Task for pushing an image, which can either push to dockerhub or to a private registry.
+ * If pushing to dockerhub, you must be logged using using `docker login` before running.
+ */
+class DockerPushTask extends Exec {
+    String tag
+
+    DockerPushTask() {
+        executable project.dockerExecutable
+        args "push", "${->getRemoteTag()}"
+    }
+
+    protected void exec() {
+        // Tag the image with the remote image name first
+        if (project.hasProperty('dockerRegistry')) {
+            project.exec {
+                commandLine project.dockerExecutable, "tag", tag, getRemoteTag()
+            }
+        }
+        super.exec()
+    }
+
+    String getRemoteTag() {
+        if (project.hasProperty('dockerRegistry')) {
+            return "${project.property('dockerRegistry')}/${tag}"
+        }
+        else {
+            return tag
+        }
     }
 }

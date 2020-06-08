@@ -6,14 +6,14 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
  */
-rootProject.name = 'schema-registry'
+package io.pravega.schemaregistry.exceptions;
 
-include 'client',
-        'common',
-        'contract',
-        'serializers',
-        'server',
-        'samples'
-        
+/**
+ * Exception thrown when conditional updates to an entity are attempted and condition fails. 
+ */
+public class PreconditionFailedException extends RuntimeException {
+    public PreconditionFailedException(String message) {
+        super(message);
+    }
+}
