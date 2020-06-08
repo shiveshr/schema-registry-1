@@ -12,6 +12,7 @@ package io.pravega.schemaregistry.client;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry;
+import io.pravega.schemaregistry.common.AuthHelper;
 import io.pravega.schemaregistry.common.ContinuationTokenIterator;
 import io.pravega.schemaregistry.contract.data.EncodingId;
 import io.pravega.schemaregistry.contract.data.EncodingInfo;
@@ -38,8 +39,9 @@ import org.glassfish.jersey.client.proxy.WebResourceFactory;
 import javax.annotation.Nullable;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.ClientRequestFilter;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
-import java.net.URI;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Comparator;
@@ -63,10 +65,16 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
     private final ApiV1.GroupsApi groupProxy;
     private final ApiV1.SchemasApi schemaProxy;
 
-    SchemaRegistryClientImpl(URI uri) {
+    SchemaRegistryClientImpl(SchemaRegistryClientConfig config) {
         Client client = ClientBuilder.newClient(new ClientConfig());
-        this.groupProxy = WebResourceFactory.newResource(ApiV1.GroupsApi.class, client.target(uri));
-        this.schemaProxy = WebResourceFactory.newResource(ApiV1.SchemasApi.class, client.target(uri));
+        if (config.isAuthEnabled()) {
+            client.register((ClientRequestFilter) context -> {
+                context.getHeaders().add(HttpHeaders.AUTHORIZATION, 
+                        AuthHelper.getCredentials(config.getAuthMethod(), config.getAuthToken()));
+            });
+        }
+        this.groupProxy = WebResourceFactory.newResource(ApiV1.GroupsApi.class, client.target(config.getSchemaRegistryUri()));
+        this.schemaProxy = WebResourceFactory.newResource(ApiV1.SchemasApi.class, client.target(config.getSchemaRegistryUri()));
     }
 
     @VisibleForTesting

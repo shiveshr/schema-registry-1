@@ -50,7 +50,19 @@ public final class Config {
     public static final int THREAD_POOL_SIZE;
     public static final String STORE_TYPE;
 
+    public static final boolean TLS_ENABLED;
+    public static final String TLS_KEY_FILE;
+    public static final String TLS_KEY_PASSWORD_FILE;
+    public static final String TLS_CERT_FILE;
+    public static final String TLS_TRUST_STORE;
+
+    public static final boolean AUTHORIZATION_ENABLED;
+    public static final String USER_PASSWORD_FILE;
+
+    public static final String TOKEN_SIGNING_KEY;
+
     public static final ServiceConfig SERVICE_CONFIG;
+
     //endregion
 
     //region Property Definitions
@@ -61,6 +73,17 @@ public final class Config {
     private static final Property<String> PROPERTY_PRAVEGA_CONTROLLER_URL = Property.named("service.controller.url", "tcp://localhost:9090");
     private static final Property<String> PROPERTY_STORE_TYPE = Property.named("service.storeType", "Pravega");
     private static final Property<Integer> PROPERTY_THREAD_POOL_SIZE = Property.named("service.threadPoolSize", 50);
+
+    private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled", false);
+    private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
+    private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
+    private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
+    private static final Property<String> PROPERTY_TLS_KEY_PASSWORD_FILE = Property.named("auth.tlsKeyPasswordFile", "");
+
+    private static final Property<Boolean> PROPERTY_AUTHORIZATION_ENABLED = Property.named("auth.enabled", false);
+    private static final Property<String> PROPERTY_AUTHORIZATION_PASSWORD_FILE = Property.named("auth.userPasswordFile", "");
+
+    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
 
     private static final String COMPONENT_CODE = "schema-registry";
 
@@ -79,6 +102,17 @@ public final class Config {
 
         THREAD_POOL_SIZE = p.getInt(PROPERTY_THREAD_POOL_SIZE);
         STORE_TYPE = p.get(PROPERTY_STORE_TYPE);
+
+        TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
+        TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
+        TLS_KEY_PASSWORD_FILE = p.get(PROPERTY_TLS_KEY_PASSWORD_FILE);
+        TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
+        TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
+
+        AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTHORIZATION_ENABLED);
+        USER_PASSWORD_FILE = p.get(PROPERTY_AUTHORIZATION_PASSWORD_FILE);
+
+        TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
 
         SERVICE_CONFIG = createServiceConfig();
     }
@@ -165,6 +199,14 @@ public final class Config {
         return ServiceConfig.builder()
                             .host(Config.SERVICE_HOST)
                                    .port(Config.SERVICE_PORT)
+                                   .authEnabled(Config.AUTHORIZATION_ENABLED)
+                                   .userPasswordFile(Config.USER_PASSWORD_FILE)
+                                   .tlsEnabled(Config.TLS_ENABLED)
+                                   .tlsCertFile(Config.TLS_CERT_FILE)
+                                   .tlsKeyFilePath(Config.TLS_KEY_FILE)
+                                   .tlsKeyFilePath(Config.TLS_KEY_PASSWORD_FILE)
+                                   .tlsTrustStore(Config.TLS_TRUST_STORE)
+                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                                    .build();
     }
 

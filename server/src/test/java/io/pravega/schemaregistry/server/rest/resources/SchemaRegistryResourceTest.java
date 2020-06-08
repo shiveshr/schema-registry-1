@@ -19,6 +19,7 @@ import io.pravega.schemaregistry.contract.generated.rest.model.ListGroupsRespons
 import io.pravega.schemaregistry.contract.generated.rest.model.SchemaInfo;
 import io.pravega.schemaregistry.contract.transform.ModelHelper;
 import io.pravega.schemaregistry.server.rest.RegistryApplication;
+import io.pravega.schemaregistry.server.rest.ServiceConfig;
 import io.pravega.schemaregistry.service.SchemaRegistryService;
 import org.glassfish.jersey.test.JerseyTest;
 import org.glassfish.jersey.test.TestProperties;
@@ -53,7 +54,7 @@ public class SchemaRegistryResourceTest extends JerseyTest {
         forceSet(TestProperties.CONTAINER_PORT, "0");
         service = mock(SchemaRegistryService.class);
         final Set<Object> resourceObjs = new HashSet<>();
-        resourceObjs.add(new SchemaRegistryResourceImpl(service));
+        resourceObjs.add(new SchemaRegistryResourceImpl(service, ServiceConfig.builder().build()));
 
         return new RegistryApplication(resourceObjs);
     }
