@@ -152,8 +152,8 @@ public class MessageBusProducer {
         // region serializer
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
-                                                            .autoCreateGroup(SerializationFormat.Avro,true)
-                                                            .autoRegisterSchema(true)
+                                                            .createGroup(SerializationFormat.Avro,true)
+                                                            .registerSchema(true)
                                                             .registryConfig(config)
                                                             .build();
 

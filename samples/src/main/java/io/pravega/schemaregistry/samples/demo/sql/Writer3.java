@@ -144,9 +144,9 @@ public class Writer3 {
         // region serializer
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
-                                                            .autoCreateGroup(SerializationFormat.Avro, SchemaValidationRules.of(Compatibility.backward()),
+                                                            .createGroup(SerializationFormat.Avro, SchemaValidationRules.of(Compatibility.backward()),
                                                                     false)
-                                                            .autoRegisterSchema(true)
+                                                            .registerSchema(true)
                                                             .registryConfig(config)
                                                             .build();
 
