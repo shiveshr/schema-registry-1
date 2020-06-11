@@ -108,10 +108,10 @@ public class EncryptionDemo {
 
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
-                                                            .autoCreateGroup(SerializationFormat.Avro,
+                                                            .createGroup(SerializationFormat.Avro,
                                                                     SchemaValidationRules.of(Compatibility.backward()), true)
-                                                            .autoRegisterSchema(true)
-                                                            .autoRegisterCodec(true)
+                                                            .registerSchema(true)
+                                                            .registerCodec(true)
                                                             .codec(myCodec)
                                                             .registryClient(client)
                                                             .build();

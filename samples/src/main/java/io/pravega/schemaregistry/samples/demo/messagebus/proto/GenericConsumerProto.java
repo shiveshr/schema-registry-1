@@ -123,10 +123,10 @@ public class GenericConsumerProto {
         // region serializer
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
-                                                            .autoCreateGroup(SerializationFormat.Protobuf, 
+                                                            .createGroup(SerializationFormat.Protobuf, 
                                                                     SchemaValidationRules.of(Compatibility.allowAny()), 
                                                                     true)
-                                                            .autoRegisterSchema(true)
+                                                            .registerSchema(true)
                                                             .registryClient(client)
                                                             .build();
         // endregion
