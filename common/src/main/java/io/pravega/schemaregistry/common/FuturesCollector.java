@@ -61,9 +61,9 @@ public class FuturesCollector {
                                          List<T> filtered = result.getValue().stream()
                                                                   .filter(filter)
                                                                   .collect(Collectors.toList());
-                                         int filterdOut = result.getValue().size() - filtered.size();
+                                         int filteredOut = result.getValue().size() - filtered.size();
                                          list.addAll(filtered);
-                                         loop.set(filterdOut > 0 && result.getValue().size() == limitRemaining.get());
+                                         loop.set(filteredOut > 0 && result.getValue().size() == limitRemaining.get());
                                          limitRemaining.set(limit - list.size());
                                          token.set(result.getKey());
                                      }), executorService)
