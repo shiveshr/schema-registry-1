@@ -10,10 +10,8 @@
 package io.pravega.schemaregistry.server.rest.resources;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
-import io.pravega.schemaregistry.contract.generated.rest.model.AddedTo;
 import io.pravega.schemaregistry.contract.generated.rest.model.CanRead;
 import io.pravega.schemaregistry.contract.generated.rest.model.CodecTypesList;
 import io.pravega.schemaregistry.contract.generated.rest.model.CreateGroupRequest;
@@ -46,18 +44,16 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static io.pravega.schemaregistry.server.rest.resources.ResourceHelper.withCompletion;
 import static javax.ws.rs.core.Response.Status;
 
 /**
  * Schema Registry Resource implementation.
  */
 @Slf4j
-public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.SchemasApiAsync {
+public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     private static final int DEFAULT_LIST_GROUPS_LIMIT = 100;
 
     @Context
@@ -65,7 +61,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
 
     private SchemaRegistryService registryService;
 
-    public SchemaRegistryResourceImpl(SchemaRegistryService registryService) {
+    public GroupResourceImpl(SchemaRegistryService registryService) {
         this.registryService = registryService;
     }
 
@@ -98,19 +94,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                     return response;
                 });
     }
-
-    private CompletableFuture<Response> withCompletion(String request, Supplier<CompletableFuture<Response>> future) {
-        try {
-            return future.get();
-        } catch (IllegalArgumentException e) {
-            log.warn("Bad request {}", request);
-            return CompletableFuture.completedFuture(Response.status(Status.BAD_REQUEST).build());
-        } catch (Exception e) {
-            log.error("request failed with exception {}", e);
-            return Futures.failedFuture(e);
-        }
-    }
-
+    
     @Override
     public void createGroup(CreateGroupRequest createGroupRequest, 
                           AsyncResponse asyncResponse) {
@@ -588,31 +572,6 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                                                             log.warn("addCodecType failed with exception: ", exception);
                                                             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                                                         }))
-                .thenApply(response -> {
-                    asyncResponse.resume(response);
-                    return response;
-                });
-    }
-
-    @Override
-    public void getSchemaReferences(SchemaInfo schemaInfo, AsyncResponse asyncResponse) {
-        withCompletion("getSchemaReferences", () -> registryService.getSchemaReferences(ModelHelper.decode(schemaInfo))
-                                                                 .thenApply(map -> {
-                                                                     AddedTo addedTo = new AddedTo()
-                                                                             .groups(map.entrySet().stream().collect(
-                                                                                     Collectors.toMap(Map.Entry::getKey,
-                                                                                             x -> ModelHelper.encode(x.getValue()))));
-                                                                     log.info("getSchemaReferences {} ", map.keySet());
-                                                                     return Response.status(Status.OK).entity(addedTo).build();
-                                                                 })
-                                                                 .exceptionally(exception -> {
-                                                                     if (Exceptions.unwrap(exception) instanceof StoreExceptions.DataNotFoundException) {
-                                                                         log.warn("Schema {} not found", schemaInfo.getType());
-                                                                         return Response.status(Status.NOT_FOUND).build();
-                                                                     }
-                                                                     log.warn("getCodecTypesList failed with exception: ", exception);
-                                                                     return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                                                                 }))
                 .thenApply(response -> {
                     asyncResponse.resume(response);
                     return response;

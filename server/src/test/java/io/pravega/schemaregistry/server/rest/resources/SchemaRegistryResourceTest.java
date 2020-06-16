@@ -53,7 +53,7 @@ public class SchemaRegistryResourceTest extends JerseyTest {
         forceSet(TestProperties.CONTAINER_PORT, "0");
         service = mock(SchemaRegistryService.class);
         final Set<Object> resourceObjs = new HashSet<>();
-        resourceObjs.add(new SchemaRegistryResourceImpl(service));
+        resourceObjs.add(new GroupResourceImpl(service));
 
         return new RegistryApplication(resourceObjs);
     }
