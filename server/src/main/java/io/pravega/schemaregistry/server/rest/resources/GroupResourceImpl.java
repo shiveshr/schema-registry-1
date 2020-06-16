@@ -9,18 +9,12 @@
  */
 package io.pravega.schemaregistry.server.rest.resources;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthException;
-import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthenticationException;
-import io.pravega.auth.AuthorizationException;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.schemaregistry.common.FuturesCollector;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
-import io.pravega.schemaregistry.contract.generated.rest.model.AddedTo;
 import io.pravega.schemaregistry.contract.generated.rest.model.CanRead;
 import io.pravega.schemaregistry.contract.generated.rest.model.CodecTypesList;
 import io.pravega.schemaregistry.contract.generated.rest.model.CreateGroupRequest;
@@ -43,15 +37,12 @@ import io.pravega.schemaregistry.exceptions.IncompatibleSchemaException;
 import io.pravega.schemaregistry.exceptions.PreconditionFailedException;
 import io.pravega.schemaregistry.exceptions.SerializationFormatMismatchException;
 import io.pravega.schemaregistry.server.rest.ServiceConfig;
-import io.pravega.schemaregistry.server.rest.auth.AuthHandlerManager;
 import io.pravega.schemaregistry.service.SchemaRegistryService;
 import io.pravega.schemaregistry.storage.ContinuationToken;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.container.AsyncResponse;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -61,7 +52,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
@@ -72,35 +62,11 @@ import static javax.ws.rs.core.Response.Status;
  * Schema Registry Resource implementation.
  */
 @Slf4j
-public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.SchemasApiAsync {
+public class GroupResourceImpl extends AbstractResource implements ApiV1.GroupsApiAsync {
     private static final int DEFAULT_LIST_GROUPS_LIMIT = 100;
-
-    // region auth resources
-    private static class AuthResources {
-        private static final String ROOT = "/";
-        private static final String NAMESPACE_FORMAT = ROOT + "%s";
-        private static final String NAMESPACE_GROUP_FORMAT = NAMESPACE_FORMAT + "%s";
-        private static final String NAMESPACE_GROUP_SCHEMA_FORMAT = NAMESPACE_GROUP_FORMAT + "/schemas";
-        private static final String NAMESPACE_GROUP_CODEC_FORMAT = NAMESPACE_GROUP_FORMAT + "/codecs";
-        private static final String GROUP_FORMAT = ROOT + "%s";
-        private static final String GROUP_SCHEMA_FORMAT = GROUP_FORMAT + "/schemas";
-        private static final String GROUP_CODEC_FORMAT = GROUP_FORMAT + "/codecs";
-    }
-    // endregion
     
-    @Context
-    HttpHeaders headers;
-
-    private SchemaRegistryService registryService;
-    private ServiceConfig config;
-    private final AuthHandlerManager authManager;
-    private final Executor executorService;
-    
-    public SchemaRegistryResourceImpl(SchemaRegistryService registryService, ServiceConfig config, Executor executorService) {
-        this.registryService = registryService;
-        this.config = config;
-        this.authManager = new AuthHandlerManager(config);
-        this.executorService = executorService;
+    public GroupResourceImpl(SchemaRegistryService registryService, ServiceConfig config, Executor executor) {
+        super(registryService, config, executor);
     }
 
     @Override
@@ -110,18 +76,18 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         int toFetch = limit == null ? DEFAULT_LIST_GROUPS_LIMIT : limit;
         ListGroupsResponse groupsList = new ListGroupsResponse();
 
-        List<String> authorizationHeader = config.isAuthEnabled() ? getAuthorizationHeader() : Collections.emptyList();
+        List<String> authorizationHeader = getConfig().isAuthEnabled() ? getAuthorizationHeader() : Collections.emptyList();
         CompletableFuture.runAsync(() -> {
-            if (config.isAuthEnabled()) {
+            if (getConfig().isAuthEnabled()) {
                 String credentials = parseCredentials(authorizationHeader);
                 try {
-                    authManager.authenticate(credentials);
+                    getAuthManager().authenticate(credentials);
                 } catch (AuthException e) {
                     log.warn("Unauthenticated", e);
                     asyncResponse.resume(Response.status(Response.Status.FORBIDDEN.getStatusCode()).build());
                 }
             }
-        }, executorService).thenCompose(v -> {
+        }, getExecutorService()).thenCompose(v -> {
             Predicate<Map.Entry<String, GroupProperties>> predicate = x -> {
                 try {
                     String resource = Strings.isNullOrEmpty(namespace) ?
@@ -136,10 +102,10 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
             
             return FuturesCollector.filteredWithTokenAndLimit(
                     (ContinuationToken t, Integer l) ->
-                            registryService.listGroups(namespace, t, l)
+                            getRegistryService().listGroups(namespace, t, l)
                                            .thenApply(mwt -> new AbstractMap.SimpleEntry<>(mwt.getToken(),
                                                    new ArrayList<>(mwt.getMap().entrySet()))), 
-                    predicate, ContinuationToken.fromString(continuationToken), toFetch, executorService)
+                    predicate, ContinuationToken.fromString(continuationToken), toFetch, getExecutorService())
                                    .thenAccept(result -> {
                                           String contToken = result.getKey() == null ?
                                                   ContinuationToken.EMPTY.toString() : result.getKey().toString();
@@ -167,7 +133,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         withCompletion("createGroup", READ_UPDATE, resource, asyncResponse, () -> {
             GroupProperties groupProperties = ModelHelper.decode(createGroupRequest.getGroupProperties());
             String groupName = createGroupRequest.getGroupName();
-            return registryService.createGroup(namespace, groupName, groupProperties)
+            return getRegistryService().createGroup(namespace, groupName, groupProperties)
                                   .thenApply(createStatus -> {
                                       if (!createStatus) {
                                           log.info("group {} exists", groupName);
@@ -192,7 +158,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         String resource = Strings.isNullOrEmpty(namespace) ? String.format(AuthResources.GROUP_FORMAT, groupName) : 
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
         withCompletion("getGroupProperties", READ, resource, asyncResponse,
-                () -> registryService.getGroupProperties(namespace, groupName)
+                () -> getRegistryService().getGroupProperties(namespace, groupName)
                                      .thenApply(groupProperty -> {
                                          log.info("Group {} property found are {}", groupName, groupProperty);
                                          return Response.status(Status.OK).entity(ModelHelper.encode(groupProperty)).build();
@@ -217,7 +183,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         String resource = Strings.isNullOrEmpty(namespace) ? String.format(AuthResources.GROUP_FORMAT, groupName) :
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
         withCompletion("getGroupHistory", READ, resource, asyncResponse,
-                () -> registryService.getGroupHistory(namespace, groupName, null)
+                () -> getRegistryService().getGroupHistory(namespace, groupName, null)
                                      .thenApply(history -> {
                                          GroupHistory list = new GroupHistory()
                                                  .history(history.stream().map(ModelHelper::encode)
@@ -253,7 +219,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                     SchemaValidationRules rules = ModelHelper.decode(updateValidationRulesRequest.getValidationRules());
                     SchemaValidationRules previousRules = updateValidationRulesRequest.getPreviousRules() == null ?
                             null : ModelHelper.decode(updateValidationRulesRequest.getPreviousRules());
-                    return registryService.updateSchemaValidationRules(namespace, groupName, rules, previousRules)
+                    return getRegistryService().updateSchemaValidationRules(namespace, groupName, rules, previousRules)
                                           .thenApply(groupProperty -> Response.status(Status.OK).build())
                                           .exceptionally(exception -> {
                                               if (Exceptions.unwrap(exception) instanceof StoreExceptions.DataNotFoundException) {
@@ -280,7 +246,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         String resource = Strings.isNullOrEmpty(namespace) ? String.format(AuthResources.GROUP_FORMAT, groupName) :
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
         withCompletion("deleteGroup", READ_UPDATE, resource, asyncResponse,
-                () -> registryService.deleteGroup(namespace, groupName)
+                () -> getRegistryService().deleteGroup(namespace, groupName)
                                      .thenApply(status -> {
                                          log.info("Group {} deleted", groupName);
                                          return Response.status(Status.NO_CONTENT).build();
@@ -302,7 +268,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("getSchemaVersions", READ, resource, asyncResponse,
-                () -> registryService.getGroupHistory(namespace, groupName, null)
+                () -> getRegistryService().getGroupHistory(namespace, groupName, null)
                                      .thenApply(history -> {
                                          SchemaVersionsList list = new SchemaVersionsList()
                                                  .schemas(history.stream().map(x -> new SchemaWithVersion()
@@ -336,7 +302,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
 
         withCompletion("addSchema", READ_UPDATE, resource, asyncResponse,
                 () -> {
-                    return registryService.addSchema(namespace, groupName, ModelHelper.decode(schemaInfo))
+                    return getRegistryService().addSchema(namespace, groupName, ModelHelper.decode(schemaInfo))
                                           .thenApply(versionInfo -> {
                                               VersionInfo version = ModelHelper.encode(versionInfo);
                                               log.info("schema added to group {} with new version {}", groupName, versionInfo);
@@ -372,7 +338,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
 
         withCompletion("validate", READ, resource, asyncResponse,
                 () -> {
-                    return registryService.validateSchema(namespace, groupName, ModelHelper.decode(validateRequest.getSchemaInfo()))
+                    return getRegistryService().validateSchema(namespace, groupName, ModelHelper.decode(validateRequest.getSchemaInfo()))
                                           .thenApply(compatible -> {
                                               log.info("Schema is valid for group {}", groupName);
                                               return Response.status(Status.OK).entity(new Valid().valid(compatible)).build();
@@ -399,7 +365,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
 
         withCompletion("canRead", READ, resource, asyncResponse,
                 () -> {
-                    return registryService.canRead(namespace, groupName, ModelHelper.decode(schemaInfo))
+                    return getRegistryService().canRead(namespace, groupName, ModelHelper.decode(schemaInfo))
                                           .thenApply(canRead -> {
                                               log.info("For group {}, can read using schema response = {}", groupName, canRead);
                                               return Response.status(Status.OK).entity(new CanRead().compatible(canRead)).build();
@@ -425,7 +391,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("getSchemaFromVersionOrdinal", READ, resource, asyncResponse,
-                () -> registryService.getSchema(namespace, groupName, versionOrdinal)
+                () -> getRegistryService().getSchema(namespace, groupName, versionOrdinal)
                                      .thenApply(schemaWithVersion -> {
                                          SchemaInfo schema = ModelHelper.encode(schemaWithVersion);
                                          log.info("Schema for version {} for group {} found.", versionOrdinal, groupName);
@@ -452,7 +418,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("getSchemaFromVersion", READ, resource, asyncResponse,
-                () -> registryService.getSchema(namespace, groupName, schemaType, version)
+                () -> getRegistryService().getSchema(namespace, groupName, schemaType, version)
                                                                     .thenApply(schemaWithVersion -> {
                                                                         SchemaInfo schema = ModelHelper.encode(schemaWithVersion);
                                                                         log.info("Schema for version {} for group {} found.", version, groupName);
@@ -480,7 +446,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("deleteSchemaFromVersionOrdinal", READ_UPDATE, resource, asyncResponse,
-                () -> registryService.deleteSchema(namespace, groupName, versionOrdinal)
+                () -> getRegistryService().deleteSchema(namespace, groupName, versionOrdinal)
                                      .thenApply(v -> {
                                          log.info("Schema for version {} for group {} deleted.", versionOrdinal, groupName);
                                          return Response.status(Status.NO_CONTENT).build();
@@ -507,7 +473,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_SCHEMA_FORMAT, namespace, groupName);
 
         withCompletion("deleteSchemaVersion", READ_UPDATE, resource, asyncResponse,
-                () -> registryService.deleteSchema(namespace, groupName, schemaType, version)
+                () -> getRegistryService().deleteSchema(namespace, groupName, schemaType, version)
                                      .thenApply(v -> {
                                          log.info("Schema for version {}/{} for group {} deleted.", schemaType, version, groupName);
                                          return Response.status(Status.NO_CONTENT).build();
@@ -538,7 +504,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 () -> {
                     io.pravega.schemaregistry.contract.data.VersionInfo version = ModelHelper.decode(getEncodingIdRequest.getVersionInfo());
                     String codecType = getEncodingIdRequest.getCodecType();
-                    return registryService.getEncodingId(namespace, groupName, version, codecType)
+                    return getRegistryService().getEncodingId(namespace, groupName, version, codecType)
                                           .thenApply(encodingId -> {
                                               EncodingId id = ModelHelper.encode(encodingId);
                                               log.info("For group {} with version {} and codec {}, returning encoding id {}", groupName,
@@ -571,7 +537,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
 
         withCompletion("getSchemaVersion", READ, resource, asyncResponse,
                 () -> {
-                    return registryService.getSchemaVersion(namespace, groupName, ModelHelper.decode(schemaInfo))
+                    return getRegistryService().getSchemaVersion(namespace, groupName, ModelHelper.decode(schemaInfo))
                                           .thenApply(version -> {
                                               VersionInfo versionInfo = ModelHelper.encode(version);
                                               log.info("schema version {} found for group {}", versionInfo, groupName);
@@ -599,7 +565,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("getSchemas", READ, resource, asyncResponse,
-                () -> registryService.getSchemas(namespace, groupName, type)
+                () -> getRegistryService().getSchemas(namespace, groupName, type)
                                                           .thenApply(schemas -> {
                                                               SchemaVersionsList schemaList = new SchemaVersionsList()
                                                                       .schemas(schemas.stream().map(ModelHelper::encode).collect(Collectors.toList()));
@@ -630,7 +596,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
         withCompletion("getEncodingInfo", READ, resource, asyncResponse,
                 () -> {
                     io.pravega.schemaregistry.contract.data.EncodingId id = new io.pravega.schemaregistry.contract.data.EncodingId(encodingId);
-                    return registryService.getEncodingInfo(namespace, groupName, id)
+                    return getRegistryService().getEncodingInfo(namespace, groupName, id)
                                           .thenApply(encodingInfo -> {
                                               EncodingInfo encoding = ModelHelper.encode(encodingInfo);
                                               log.info("group {} encoding id {} encodingInfo {}", groupName, encodingId, encoding);
@@ -659,7 +625,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_FORMAT, namespace, groupName);
 
         withCompletion("getCodecTypesList", READ, resource, asyncResponse,
-                () -> registryService.getCodecTypes(namespace, groupName)
+                () -> getRegistryService().getCodecTypes(namespace, groupName)
                                      .thenApply(list -> {
                                          CodecTypesList codecsList = new CodecTypesList().codecTypes(list);
                                          log.info("group {}, codecTypes {} ", groupName, codecsList);
@@ -686,7 +652,7 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                 String.format(AuthResources.NAMESPACE_GROUP_CODEC_FORMAT, namespace, groupName);
 
         withCompletion("addCodecType", READ, resource, asyncResponse,
-                () -> registryService.addCodecType(namespace, groupName, codecType)
+                () -> getRegistryService().addCodecType(namespace, groupName, codecType)
                                      .thenApply(v -> {
                                          log.info("codecType {} added to group {}", codecType, groupName);
                                          return Response.status(Status.CREATED).build();
@@ -704,83 +670,4 @@ public class SchemaRegistryResourceImpl implements ApiV1.GroupsApiAsync, ApiV1.S
                     return response;
                 });
     }
-
-    @Override
-    public void getSchemaReferences(SchemaInfo schemaInfo, String namespace, AsyncResponse asyncResponse) {
-        withCompletion("getSchemaReferences", READ, String.format(AuthResources.NAMESPACE_FORMAT, namespace), asyncResponse,
-                () -> registryService.getSchemaReferences(namespace, ModelHelper.decode(schemaInfo))
-                                                                   .thenApply(map -> {
-                                                                       AddedTo addedTo = new AddedTo()
-                                                                               .groups(map.entrySet().stream().collect(
-                                                                                       Collectors.toMap(Map.Entry::getKey,
-                                                                                               x -> ModelHelper.encode(x.getValue()))));
-                                                                       log.info("getSchemaReferences {} ", map.keySet());
-                                                                       return Response.status(Status.OK).entity(addedTo).build();
-                                                                   })
-                                                                   .exceptionally(exception -> {
-                                                                       if (Exceptions.unwrap(exception) instanceof StoreExceptions.DataNotFoundException) {
-                                                                           log.warn("Schema {} not found", schemaInfo.getType());
-                                                                           return Response.status(Status.NOT_FOUND).build();
-                                                                       }
-                                                                       log.warn("getCodecTypesList failed with exception: ", exception);
-                                                                       return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                                                                   }))
-                .thenApply(response -> {
-                    asyncResponse.resume(response);
-                    return response;
-                });
-    }
-    
-    /**
-     * This is a shortcut for {@code headers.getRequestHeader().get(HttpHeaders.AUTHORIZATION)}.
-     *
-     * @return a list of read-only values of the HTTP Authorization header
-     * @throws IllegalStateException if called outside the scope of the HTTP request
-     */
-    private List<String> getAuthorizationHeader() {
-        return headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
-    }
-
-    private CompletableFuture<Response> withCompletion(String request, AuthHandler.Permissions permissions,
-                                                       String resource, AsyncResponse response,
-                                                       Supplier<CompletableFuture<Response>> future) {
-        try {
-            authenticateAuthorize(getAuthorizationHeader(), resource, permissions);
-            return future.get();
-        } catch (AuthException e) {
-            log.warn("Auth failed {}", request, e);
-            response.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
-            throw e;
-        } catch (IllegalArgumentException e) {
-            log.warn("Bad request {}", request);
-            return CompletableFuture.completedFuture(Response.status(Status.BAD_REQUEST).build());
-        } catch (Exception e) {
-            log.error("request failed with exception {}", e);
-            return Futures.failedFuture(e);
-        }
-    }
-
-    private void authenticateAuthorize(List<String> authHeader, String resource, AuthHandler.Permissions permission)
-            throws AuthException {
-        if (config.isAuthEnabled()) {
-            String credentials = parseCredentials(authHeader);
-            if (!authManager.authenticateAndAuthorize(resource, credentials, permission)) {
-                throw new AuthorizationException(
-                        String.format("Failed to authorize for resource [%s]", resource),
-                        Response.Status.FORBIDDEN.getStatusCode());
-            }
-        }
-    }
-
-    private String parseCredentials(List<String> authHeader) throws AuthenticationException {
-        if (authHeader == null || authHeader.isEmpty()) {
-            throw new AuthenticationException("Missing authorization header.");
-        }
-
-        // Expecting a single value here. If there are multiple, we'll deal with just the first one.
-        String credentials = authHeader.get(0);
-        Preconditions.checkNotNull(credentials, "Missing credentials.");
-        return credentials;
-    }
-
 }
