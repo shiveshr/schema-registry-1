@@ -46,23 +46,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static io.pravega.schemaregistry.server.rest.resources.ResourceHelper.withCompletion;
 import static javax.ws.rs.core.Response.Status;
 
 /**
  * Schema Registry Resource implementation.
  */
 @Slf4j
-public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
+public class GroupResourceImpl extends AbstractResource implements ApiV1.GroupsApiAsync {
     private static final int DEFAULT_LIST_GROUPS_LIMIT = 100;
 
     @Context
     HttpHeaders headers;
 
-    private SchemaRegistryService registryService;
-
     public GroupResourceImpl(SchemaRegistryService registryService) {
-        this.registryService = registryService;
+        super(registryService);
     }
 
     @Override
@@ -70,7 +67,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
                          AsyncResponse asyncResponse) {
         log.info("List Groups called");
         int limitUnboxed = limit == null ? DEFAULT_LIST_GROUPS_LIMIT : limit;
-        withCompletion("listGroups", () -> registryService.listGroups(ContinuationToken.fromString(continuationToken), limitUnboxed)
+        withCompletion("listGroups", () -> getRegistryService().listGroups(ContinuationToken.fromString(continuationToken), limitUnboxed)
                                                           .thenApply(result -> {
                                                               ListGroupsResponse groupsList = new ListGroupsResponse();
                                                               result.getMap().forEach((x, y) -> {
@@ -102,7 +99,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
         withCompletion("createGroup", () -> {
             GroupProperties groupProperties = ModelHelper.decode(createGroupRequest.getGroupProperties());
             String groupName = createGroupRequest.getGroupName();
-            return registryService.createGroup(groupName, groupProperties)
+            return getRegistryService().createGroup(groupName, groupProperties)
                                   .thenApply(createStatus -> {
                                       if (!createStatus) {
                                           log.info("group {} exists", groupName);
@@ -125,7 +122,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     public void getGroupProperties(String groupName, 
                                  AsyncResponse asyncResponse) {
         log.info("Get group properties called for group {}", groupName);
-        withCompletion("getGroupProperties", () -> registryService.getGroupProperties(groupName)
+        withCompletion("getGroupProperties", () -> getRegistryService().getGroupProperties(groupName)
                                                                   .thenApply(groupProperty -> {
                                                                       log.info("Group {} property found are {}", groupName, groupProperty);
                                                                       return Response.status(Status.OK).entity(ModelHelper.encode(groupProperty)).build();
@@ -147,7 +144,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void getGroupHistory(String groupName,  AsyncResponse asyncResponse) {
         log.info("Get group history called for group {}", groupName);
-        withCompletion("getGroupHistory", () -> registryService.getGroupHistory(groupName, null)
+        withCompletion("getGroupHistory", () -> getRegistryService().getGroupHistory(groupName, null)
                                                                .thenApply(history -> {
                                                                    GroupHistory list = new GroupHistory()
                                                                            .history(history.stream().map(ModelHelper::encode)
@@ -178,7 +175,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
             SchemaValidationRules rules = ModelHelper.decode(updateValidationRulesRequest.getValidationRules());
             SchemaValidationRules previousRules = updateValidationRulesRequest.getPreviousRules() == null ?
                     null : ModelHelper.decode(updateValidationRulesRequest.getPreviousRules());
-            return registryService.updateSchemaValidationRules(groupName, rules, previousRules)
+            return getRegistryService().updateSchemaValidationRules(groupName, rules, previousRules)
                                   .thenApply(groupProperty -> Response.status(Status.OK).build())
                                   .exceptionally(exception -> {
                                       if (Exceptions.unwrap(exception) instanceof StoreExceptions.DataNotFoundException) {
@@ -201,7 +198,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void deleteGroup(String groupName, AsyncResponse asyncResponse) {
         log.info("Delete group called for group {}", groupName);
-        withCompletion("deleteGroup", () -> registryService.deleteGroup(groupName)
+        withCompletion("deleteGroup", () -> getRegistryService().deleteGroup(groupName)
                                                            .thenApply(status -> {
                                                                log.info("Group {} deleted", groupName);
                                                                return Response.status(Status.NO_CONTENT).build();
@@ -219,7 +216,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void getSchemaVersions(String groupName, String type,  AsyncResponse asyncResponse) {
         log.info("Get group schemas called for group {}", groupName);
-        withCompletion("getSchemaVersions", () -> registryService.getGroupHistory(groupName, type)
+        withCompletion("getSchemaVersions", () -> getRegistryService().getGroupHistory(groupName, type)
                                                                .thenApply(history -> {
                                                                    SchemaVersionsList list = new SchemaVersionsList()
                                                                            .schemas(history.stream().map(x -> new SchemaWithVersion()
@@ -250,7 +247,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
         withCompletion("addSchema", () -> {
             io.pravega.schemaregistry.contract.data.SchemaInfo schema = ModelHelper.decode(schemaInfo);
 
-            return registryService.addSchema(groupName, schema)
+            return getRegistryService().addSchema(groupName, schema)
                                   .thenApply(versionInfo -> {
                                       VersionInfo version = ModelHelper.encode(versionInfo);
                                       log.info("schema added to group {} with new version {}", groupName, versionInfo);
@@ -284,7 +281,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
 
         withCompletion("validate", () -> {
             io.pravega.schemaregistry.contract.data.SchemaInfo schemaInfo = ModelHelper.decode(validateRequest.getSchemaInfo());
-            return registryService.validateSchema(groupName, schemaInfo)
+            return getRegistryService().validateSchema(groupName, schemaInfo)
                                   .thenApply(compatible -> {
                                       log.info("Schema is valid for group {}", groupName);
                                       return Response.status(Status.OK).entity(new Valid().valid(compatible)).build();
@@ -309,7 +306,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
 
         withCompletion("canRead", () -> {
             io.pravega.schemaregistry.contract.data.SchemaInfo schema = ModelHelper.decode(schemaInfo);
-            return registryService.canRead(groupName, schema)
+            return getRegistryService().canRead(groupName, schema)
                                   .thenApply(canRead -> {
                                       log.info("For group {}, can read using schema response = {}", groupName, canRead);
                                       return Response.status(Status.OK).entity(new CanRead().compatible(canRead)).build();
@@ -331,7 +328,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void getSchemaFromVersionOrdinal(String groupName, Integer versionOrdinal, AsyncResponse asyncResponse) {
         log.info("Get schema from version {} called for group {}", versionOrdinal, groupName);
-        withCompletion("getSchemaFromVersionOrdinal", () -> registryService.getSchema(groupName, versionOrdinal)
+        withCompletion("getSchemaFromVersionOrdinal", () -> getRegistryService().getSchema(groupName, versionOrdinal)
                                                                     .thenApply(schemaWithVersion -> {
                                                                         SchemaInfo schema = ModelHelper.encode(schemaWithVersion);
                                                                         log.info("Schema for version {} for group {} found.", versionOrdinal, groupName);
@@ -354,7 +351,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void getSchemaFromVersion(String groupName, String schemaType, Integer version, AsyncResponse asyncResponse) {
         log.info("Get schema from version {} called for group {}", version, groupName);
-        withCompletion("getSchemaFromVersionOrdinal", () -> registryService.getSchema(groupName, schemaType, version)
+        withCompletion("getSchemaFromVersionOrdinal", () -> getRegistryService().getSchema(groupName, schemaType, version)
                                                                     .thenApply(schemaWithVersion -> {
                                                                         SchemaInfo schema = ModelHelper.encode(schemaWithVersion);
                                                                         log.info("Schema for version {} for group {} found.", version, groupName);
@@ -378,7 +375,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     public void deleteSchemaFromVersionOrdinal(String groupName, Integer versionOrdinal,
                                     AsyncResponse asyncResponse) {
         log.info("Get schema from version {} called for group {}", versionOrdinal, groupName);
-        withCompletion("deleteSchemaFromVersionOrdinal", () -> registryService.deleteSchema(groupName, versionOrdinal)
+        withCompletion("deleteSchemaFromVersionOrdinal", () -> getRegistryService().deleteSchema(groupName, versionOrdinal)
                                      .thenApply(v -> {
                                          log.info("Schema for version {} for group {} deleted.", versionOrdinal, groupName);
                                          return Response.status(Status.NO_CONTENT).build();
@@ -401,7 +398,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     public void deleteSchemaVersion(String groupName, String schemaType, Integer version,
                                     AsyncResponse asyncResponse) {
         log.info("Get schema from version {}/{} called for group {}", schemaType, version, groupName);
-        withCompletion("deleteSchemaFromVersionOrdinal", () -> registryService.deleteSchema(groupName, schemaType, version)
+        withCompletion("deleteSchemaFromVersionOrdinal", () -> getRegistryService().deleteSchema(groupName, schemaType, version)
                                      .thenApply(v -> {
                                          log.info("Schema for version {}/{} for group {} deleted.", schemaType, version, groupName);
                                          return Response.status(Status.NO_CONTENT).build();
@@ -428,7 +425,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
         withCompletion("getEncodingId", () -> {
             io.pravega.schemaregistry.contract.data.VersionInfo version = ModelHelper.decode(getEncodingIdRequest.getVersionInfo());
             String codecType = getEncodingIdRequest.getCodecType();
-            return registryService.getEncodingId(groupName, version, codecType)
+            return getRegistryService().getEncodingId(groupName, version, codecType)
                                   .thenApply(encodingId -> {
                                       EncodingId id = ModelHelper.encode(encodingId);
                                       log.info("For group {} with version {} and codecType {}, returning encoding id {}", groupName,
@@ -459,7 +456,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
         withCompletion("getSchemaVersion", () -> {
             io.pravega.schemaregistry.contract.data.SchemaInfo schema = ModelHelper.decode(schemaInfo);
 
-            return registryService.getSchemaVersion(groupName, schema)
+            return getRegistryService().getSchemaVersion(groupName, schema)
                                   .thenApply(version -> {
                                       VersionInfo versionInfo = ModelHelper.encode(version);
                                       log.info("schema version {} found for group {}", versionInfo, groupName);
@@ -483,7 +480,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void getSchemas(String groupName, String type, AsyncResponse asyncResponse) {
         log.info("getSchemas called for group {} ", groupName);
-        withCompletion("getSchemas", () -> registryService.getSchemas(groupName, type)
+        withCompletion("getSchemas", () -> getRegistryService().getSchemas(groupName, type)
                                                           .thenApply(schemas -> {
                                                               SchemaVersionsList schemaList = new SchemaVersionsList()
                                                                       .schemas(schemas.stream().map(ModelHelper::encode).collect(Collectors.toList()));
@@ -511,7 +508,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
         log.info("getEncodingInfo called for group {} encodingId {}", groupName, encodingId);
         withCompletion("getEncodingInfo", () -> {
             io.pravega.schemaregistry.contract.data.EncodingId id = new io.pravega.schemaregistry.contract.data.EncodingId(encodingId);
-            return registryService.getEncodingInfo(groupName, id)
+            return getRegistryService().getEncodingInfo(groupName, id)
                                   .thenApply(encodingInfo -> {
                                       EncodingInfo encoding = ModelHelper.encode(encodingInfo);
                                       log.info("group {} encoding id {} encodingInfo {}", groupName, encodingId, encoding);
@@ -536,7 +533,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     public void getCodecTypesList(String groupName, 
                             AsyncResponse asyncResponse) {
         log.info("getCodecTypesList called for group {} ", groupName);
-        withCompletion("getCodecTypesList", () -> registryService.getCodecTypes(groupName)
+        withCompletion("getCodecTypesList", () -> getRegistryService().getCodecTypes(groupName)
                                                              .thenApply(list -> {
                                                                  CodecTypesList codecsList = new CodecTypesList().codecTypes(list);
                                                                  log.info("group {}, codecTypes {} ", groupName, codecsList);
@@ -559,7 +556,7 @@ public class GroupResourceImpl implements ApiV1.GroupsApiAsync {
     @Override
     public void addCodecType(String groupName, String codecType, AsyncResponse asyncResponse) {
         log.info("addCodecType called for group {} codecType {}", groupName, codecType);
-        withCompletion("addCodecType", () -> registryService.addCodecType(groupName, codecType)
+        withCompletion("addCodecType", () -> getRegistryService().addCodecType(groupName, codecType)
                                                         .thenApply(v -> {
                                                             log.info("codecType {} added to group {}", codecType, groupName);
                                                             return Response.status(Status.CREATED).build();

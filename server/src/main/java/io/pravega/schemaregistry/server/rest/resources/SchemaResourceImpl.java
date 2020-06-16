@@ -31,22 +31,20 @@ import static javax.ws.rs.core.Response.Status;
  * Schema Registry Resource implementation.
  */
 @Slf4j
-public class SchemaResourceImpl implements ApiV1.SchemasApiAsync {
-    private static final int DEFAULT_LIST_GROUPS_LIMIT = 100;
-
+public class SchemaResourceImpl extends AbstractResource implements ApiV1.SchemasApiAsync {
     @Context
     HttpHeaders headers;
 
     private SchemaRegistryService registryService;
 
     public SchemaResourceImpl(SchemaRegistryService registryService) {
-        this.registryService = registryService;
+        super(registryService);
     }
 
     @Override
     public void getSchemaReferences(SchemaInfo schemaInfo, AsyncResponse asyncResponse) {
-        ResourceHelper.withCompletion("getSchemaReferences", () -> registryService.getSchemaReferences(ModelHelper.decode(schemaInfo))
-                                                                                  .thenApply(map -> {
+        withCompletion("getSchemaReferences", () -> registryService.getSchemaReferences(ModelHelper.decode(schemaInfo))
+                                                                                    .thenApply(map -> {
                                                                                       AddedTo addedTo = new AddedTo()
                                                                                               .groups(map.entrySet().stream().collect(
                                                                                                       Collectors.toMap(Map.Entry::getKey,
@@ -54,7 +52,7 @@ public class SchemaResourceImpl implements ApiV1.SchemasApiAsync {
                                                                                       log.info("getSchemaReferences {} ", map.keySet());
                                                                                       return Response.status(Status.OK).entity(addedTo).build();
                                                                                   })
-                                                                                  .exceptionally(exception -> {
+                                                                                    .exceptionally(exception -> {
                                                                                       if (Exceptions.unwrap(exception) instanceof StoreExceptions.DataNotFoundException) {
                                                                                           log.warn("Schema {} not found", schemaInfo.getType());
                                                                                           return Response.status(Status.NOT_FOUND).build();
@@ -62,7 +60,7 @@ public class SchemaResourceImpl implements ApiV1.SchemasApiAsync {
                                                                                       log.warn("getCodecTypesList failed with exception: ", exception);
                                                                                       return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                                                                                   }))
-                      .thenApply(response -> {
+                        .thenApply(response -> {
                           asyncResponse.resume(response);
                           return response;
                       });

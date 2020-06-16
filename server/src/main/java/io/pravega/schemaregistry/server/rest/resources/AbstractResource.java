@@ -10,15 +10,29 @@
 package io.pravega.schemaregistry.server.rest.resources;
 
 import io.pravega.common.concurrent.Futures;
+import io.pravega.schemaregistry.service.SchemaRegistryService;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 @Slf4j
-class ResourceHelper {
-    static CompletableFuture<Response> withCompletion(String request, Supplier<CompletableFuture<Response>> future) {
+class AbstractResource {
+    @Context
+    HttpHeaders headers;
+
+    @Getter
+    private final SchemaRegistryService registryService;
+
+    AbstractResource(SchemaRegistryService registryService) {
+        this.registryService = registryService;
+    }
+
+    CompletableFuture<Response> withCompletion(String request, Supplier<CompletableFuture<Response>> future) {
         try {
             return future.get();
         } catch (IllegalArgumentException e) {
