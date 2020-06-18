@@ -20,15 +20,13 @@ import io.pravega.common.util.Retry;
 import io.pravega.schemaregistry.MapWithToken;
 import io.pravega.schemaregistry.common.FuturesCollector;
 import io.pravega.schemaregistry.common.NameUtil;
-import io.pravega.schemaregistry.contract.data.AllowAny;
 import io.pravega.schemaregistry.contract.data.BackwardAndForward;
-import io.pravega.schemaregistry.contract.data.DenyAll;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.EncodingId;
 import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
@@ -46,14 +44,14 @@ import org.apache.avro.Schema;
 import javax.annotation.Nullable;
 import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.pravega.schemaregistry.contract.data.BackwardAndForward.*;
 
 /**
  * Schema registry service backend.
@@ -86,22 +84,22 @@ public class SchemaRegistryService {
         log.info("List groups called");
         return FuturesCollector.filteredWithTokenAndLimit(
                 (ContinuationToken c, Integer l) -> store.listGroups(namespace, c, l)
-                    .thenCompose(reply -> {
-                        List<String> list = reply.getList();
-                        return Futures.allOfWithResults(list.stream().map(x -> Futures.exceptionallyExpecting(store.getGroupProperties(namespace, x).thenApply(AtomicReference::new),
-                                e -> Exceptions.unwrap(e) instanceof StoreExceptions.DataNotFoundException,
-                                new AtomicReference<>((GroupProperties) null)).thenApply(prop -> new AbstractMap.SimpleEntry<>(x, prop)))
-                                                            .collect(Collectors.toList()))
-                                .thenApply(result -> new AbstractMap.SimpleEntry<>(reply.getToken(), result));
-                    }), 
+                                                         .thenCompose(reply -> {
+                                                             List<String> list = reply.getList();
+                                                             return Futures.allOfWithResults(list.stream().map(x -> Futures.exceptionallyExpecting(store.getGroupProperties(namespace, x).thenApply(AtomicReference::new),
+                                                                     e -> Exceptions.unwrap(e) instanceof StoreExceptions.DataNotFoundException,
+                                                                     new AtomicReference<>((GroupProperties) null)).thenApply(prop -> new AbstractMap.SimpleEntry<>(x, prop)))
+                                                                                                 .collect(Collectors.toList()))
+                                                                           .thenApply(result -> new AbstractMap.SimpleEntry<>(reply.getToken(), result));
+                                                         }),
                 x -> x.getValue().get() != null, continuationToken, limit, executor)
-        .thenApply(groupsList -> {
-            log.info("Returning groups {}", groupsList);
-            Map<String, GroupProperties> collect = groupsList.getValue().stream().collect(
-                    Collectors.toMap(AbstractMap.SimpleEntry::getKey, x -> x.getValue().get()));
-            return new MapWithToken<>(
-                    collect, groupsList.getKey());
-        });
+                               .thenApply(groupsList -> {
+                                   log.info("Returning groups {}", groupsList);
+                                   Map<String, GroupProperties> collect = groupsList.getValue().stream().collect(
+                                           Collectors.toMap(AbstractMap.SimpleEntry::getKey, x -> x.getValue().get()));
+                                   return new MapWithToken<>(
+                                           collect, groupsList.getKey());
+                               });
     }
 
     /**
@@ -168,7 +166,7 @@ public class SchemaRegistryService {
      * @return CompletableFuture which is completed when validation policy update completes.
      */
     public CompletableFuture<Void> updateCompatibility(String namespace, String group, Compatibility validationRules,
-                                                               @Nullable Compatibility previousRules) {
+                                                       @Nullable Compatibility previousRules) {
         Preconditions.checkArgument(group != null);
         Preconditions.checkArgument(validationRules != null);
         log.info("updateCompatibility called for group {}. New validation rules {}", group, validationRules);
@@ -249,7 +247,7 @@ public class SchemaRegistryService {
                                          .thenCompose(etag ->
                                                  store.getGroupProperties(namespace, group)
                                                       .thenCompose(prop -> {
-                                                          if (!schema.getSerializationFormat().equals(prop.getSerializationFormat()) && 
+                                                          if (!schema.getSerializationFormat().equals(prop.getSerializationFormat()) &&
                                                                   !prop.getSerializationFormat().equals(SerializationFormat.Any)) {
                                                               throw new SerializationFormatMismatchException(schema.getSerializationFormat().name());
                                                           }
@@ -612,30 +610,32 @@ public class SchemaRegistryService {
             case Json:
             case Custom:
             case Any:
-                return newRules instanceof AllowAny || newRules instanceof DenyAll;
+                return !newRules.getType().equals(Compatibility.Type.BackwardAndForward);
             default:
-                throw new IllegalArgumentException(); 
+                throw new IllegalArgumentException();
         }
     }
 
     private CompletableFuture<List<SchemaWithVersion>> getSchemasForValidation(String namespace, String group, SchemaInfo schema, GroupProperties groupProperties) {
-        CompletableFuture<List<SchemaWithVersion>> schemasFuture;
-        switch (groupProperties.getCompatibility().getRuleType()) {
+        switch (groupProperties.getCompatibility().getType()) {
             case AllowAny:
             case DenyAll:
                 return CompletableFuture.completedFuture(Collections.emptyList());
             case BackwardAndForward:
-                BackwardAndForward backwardAndForward = groupProperties.getCompatibility().getCompatibility();
-                BackwardAndForward.BackwardPolicy backward = backwardAndForward.getBackwardPolicy();
-                backwardAndForward.getForwardPolicy();
-                return null;;;;
+                return getSchemasForBackwardAndForwardPolicy(namespace, group, schema, groupProperties);
+            default:
+                throw new IllegalArgumentException();
         }
-        
-        boolean fetchAll = groupProperties.getCompatibility().getRules().values().stream()
-                                          .anyMatch(x -> x instanceof BackwardAndForward
-                                                  && (((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.BackwardTransitive)
-                                                  || ((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.ForwardTransitive)
-                                                  || ((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.FullTransitive)));
+    }
+
+    private CompletableFuture<List<SchemaWithVersion>> getSchemasForBackwardAndForwardPolicy(String namespace, String group, SchemaInfo schema, GroupProperties groupProperties) {
+        CompletableFuture<List<SchemaWithVersion>> schemasFuture;
+
+        BackwardAndForward backwardAndForward = groupProperties.getCompatibility().getBackwardAndForward();
+        BackwardPolicy backward = backwardAndForward.getBackwardPolicy();
+        ForwardPolicy forward = backwardAndForward.getForwardPolicy();
+
+        boolean fetchAll = backward instanceof BackwardTransitive || forward instanceof ForwardTransitive;
 
         if (fetchAll) {
             if (groupProperties.isAllowMultipleTypes()) {
@@ -644,23 +644,11 @@ public class SchemaRegistryService {
                 schemasFuture = store.listSchemas(namespace, group);
             }
         } else {
-            VersionInfo till = groupProperties.getCompatibility().getRules().values().stream()
-                                              .filter(x -> x instanceof BackwardAndForward
-                                                      && (((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.BackwardTill)
-                                                      || ((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.ForwardTill)
-                                                      || ((BackwardAndForward) x).getCompatibility().equals(BackwardAndForward.Type.BackwardAndForwardTill)))
-                                              .map(x -> {
-                                                  BackwardAndForward backwardAndForward = (BackwardAndForward) x;
-                                                  if (backwardAndForward.getCompatibility().equals(BackwardAndForward.Type.BackwardTill)) {
-                                                      return backwardAndForward.getBackwardTill();
-                                                  } else if (backwardAndForward.getCompatibility().equals(BackwardAndForward.Type.ForwardTill)) {
-                                                      return backwardAndForward.getForwardTill();
-                                                  } else {
-                                                      return backwardAndForward.getBackwardTill().getVersion() < backwardAndForward.getForwardTill().getVersion() ?
-                                                              backwardAndForward.getBackwardTill() : backwardAndForward.getForwardTill();
-                                                  }
-                                              }).max(Comparator.comparingInt(VersionInfo::getVersion)).orElse(null);
-            if (till != null) {
+            int backwardTill = backward instanceof BackwardTill ? ((BackwardTill) backward).getVersionInfo().getId() : Integer.MAX_VALUE;  
+            int forwardTill = forward instanceof ForwardTill ? ((ForwardTill) forward).getVersionInfo().getId() : Integer.MAX_VALUE;
+            
+            if (backwardTill != Integer.MAX_VALUE || forwardTill != Integer.MAX_VALUE) {
+                VersionInfo till = backwardTill < forwardTill ? ((BackwardTill) backward).getVersionInfo() : ((ForwardTill) forward).getVersionInfo();  
                 if (groupProperties.isAllowMultipleTypes()) {
                     schemasFuture = store.listSchemasByType(namespace, group, schema.getType(), till);
                 } else {
@@ -685,58 +673,52 @@ public class SchemaRegistryService {
         Preconditions.checkArgument(validateSchemaData(schema));
         CompatibilityChecker checker = CompatibilityCheckerFactory.getCompatibilityChecker(schema.getSerializationFormat());
 
-        List<SchemaInfo> schemas = schemasWithVersion.stream().map(SchemaWithVersion::getSchemaInfo).collect(Collectors.toList());
-        Collections.reverse(schemas);
-
         // Verify that the type matches the type in schemas it will be validated against.
-        if (!schemas.stream().allMatch(x -> x.getType().equals(schema.getType()))) {
+        if (!schemasWithVersion.stream().allMatch(x -> x.getSchemaInfo().getType().equals(schema.getType()))) {
             return false;
         }
-        for (SchemaValidationRule rule : groupProperties.getCompatibility().getRules().values()) {
-            if (rule instanceof BackwardAndForward) {
-                BackwardAndForward backwardAndForward = (BackwardAndForward) rule;
-                boolean isValid;
-                switch (backwardAndForward.getCompatibility()) {
-                    case Backward:
-                    case BackwardTill:
-                    case BackwardTransitive:
-                        isValid = checker.canRead(schema, schemas);
-                        break;
-                    case Forward:
-                    case ForwardTill:
-                    case ForwardTransitive:
-                        isValid = checker.canBeRead(schema, schemas);
-                        break;
-                    case Full:
-                    case FullTransitive:
-                        isValid = checker.canMutuallyRead(schema, schemas);
-                        break;
-                    case BackwardAndForwardTill:
-                        List<SchemaInfo> backwardTillList = new LinkedList<>();
-                        List<SchemaInfo> forwardTillList = new LinkedList<>();
-                        schemasWithVersion.forEach(x -> {
-                            if (x.getVersionInfo().getVersion() >= backwardAndForward.getBackwardTill().getVersion()) {
-                                backwardTillList.add(x.getSchemaInfo());
-                            }
-                            if (x.getVersionInfo().getVersion() >= backwardAndForward.getForwardTill().getVersion()) {
-                                forwardTillList.add(x.getSchemaInfo());
-                            }
-                        });
-                        isValid = checker.canRead(schema, backwardTillList) & checker.canBeRead(schema, forwardTillList);
-                        break;
-                    case AllowAny:
-                        isValid = true;
-                        break;
-                    case DenyAll:
-                    default:
-                        isValid = schemasWithVersion.isEmpty();
-                        break;
-                }
+        switch (groupProperties.getCompatibility().getType()) {
+            case AllowAny:
+                return true;
+            case DenyAll:
+                return schemasWithVersion.isEmpty();
+            case BackwardAndForward:
+                BackwardAndForward backwardAndForward = groupProperties.getCompatibility().getBackwardAndForward();
+                BackwardPolicy backward = backwardAndForward.getBackwardPolicy();
+                ForwardPolicy forward = backwardAndForward.getForwardPolicy();
+                boolean isValid = true;
+                if (backward != null) {
+                    List<SchemaInfo> schemas;
+                    if (backward instanceof BackwardTill) {
+                        schemas = schemasWithVersion.stream()
+                                              .filter(x -> x.getVersionInfo().getVersion() >= ((BackwardTill) backward).getVersionInfo().getVersion())
+                                              .map(SchemaWithVersion::getSchemaInfo)
+                                              .collect(Collectors.toList());
+                    } else {
+                        schemas = schemasWithVersion.stream().map(SchemaWithVersion::getSchemaInfo).collect(Collectors.toList());
+                    }
+                    Collections.reverse(schemas);
+
+                    isValid = checker.canRead(schema, schemas);
+                } 
+                if (isValid && forward != null) {
+                    List<SchemaInfo> schemas;
+                    if (forward instanceof ForwardTill) {
+                        schemas = schemasWithVersion.stream()
+                                              .filter(x -> x.getVersionInfo().getVersion() >= ((ForwardTill) forward).getVersionInfo().getVersion())
+                                              .map(SchemaWithVersion::getSchemaInfo)
+                                              .collect(Collectors.toList());
+                    } else {
+                        schemas = schemasWithVersion.stream().map(SchemaWithVersion::getSchemaInfo).collect(Collectors.toList());
+                    }
+                    Collections.reverse(schemas);
+
+                    isValid = checker.canBeRead(schema, schemas);
+                } 
                 return isValid;
-            }
+            default:
+                throw new IllegalArgumentException();
         }
-        // if no rules are set, we will come here. 
-        return true;
     }
 
     private boolean validateSchemaData(SchemaInfo schemaInfo) {
@@ -782,49 +764,40 @@ public class SchemaRegistryService {
         List<SchemaInfo> schemas = schemasWithVersion.stream().map(SchemaWithVersion::getSchemaInfo)
                                                      .collect(Collectors.toList());
         Collections.reverse(schemas);
-        for (SchemaValidationRule rule : prop.getCompatibility().getRules().values()) {
-            if (rule instanceof BackwardAndForward) {
-                boolean canRead;
-                BackwardAndForward backwardAndForward = (BackwardAndForward) rule;
-                switch (backwardAndForward.getCompatibility()) {
-                    case Backward:
-                    case BackwardTill:
-                    case BackwardTransitive:
-                        canRead = checker.canRead(schema, schemas);
-                        break;
-                    case Forward:
-                    case ForwardTill:
-                    case ForwardTransitive:
-                    case Full:
-                    case DenyAll:
-                        // check can read latest.
-                        canRead = !schemas.isEmpty() &&
-                                checker.canRead(schema, Collections.singletonList(schemas.get(0)));
-                        break;
-                    case FullTransitive:
-                        canRead = checker.canRead(schema, schemas);
-                        break;
-                    case BackwardAndForwardTill:
-                        List<SchemaInfo> backwardTillList = new LinkedList<>();
-                        schemasWithVersion.forEach(x -> {
-                            if (x.getVersionInfo().getVersion() >= backwardAndForward.getBackwardTill().getVersion()) {
-                                backwardTillList.add(x.getSchemaInfo());
-                            }
-                        });
-                        canRead = checker.canRead(schema, backwardTillList);
-                        break;
-                    case AllowAny:
-                        canRead = true;
-                        break;
-                    default:
-                        canRead = false;
-                        break;
+
+        switch (prop.getCompatibility().getType()) {
+            case AllowAny:
+                return true;
+            case DenyAll:
+                return !schemas.isEmpty() &&
+                        checker.canRead(schema, Collections.singletonList(schemas.get(0)));
+            case BackwardAndForward:
+                BackwardAndForward backwardAndForward = prop.getCompatibility().getBackwardAndForward();
+                BackwardPolicy backward = backwardAndForward.getBackwardPolicy();
+                ForwardPolicy forward = backwardAndForward.getForwardPolicy();
+                boolean canRead = true;
+                if (backward != null) {
+                    List<SchemaInfo> schemasToUse;
+                    if (backward instanceof BackwardTill) {
+                        schemasToUse = schemasWithVersion.stream()
+                                                    .filter(x -> x.getVersionInfo().getVersion() >= ((BackwardTill) backward).getVersionInfo().getVersion())
+                                                    .map(SchemaWithVersion::getSchemaInfo)
+                                                    .collect(Collectors.toList());
+                    } else {
+                        schemasToUse = schemasWithVersion.stream().map(SchemaWithVersion::getSchemaInfo).collect(Collectors.toList());
+                    }
+                    Collections.reverse(schemasToUse);
+
+                    canRead = checker.canRead(schema, schemasToUse);
+                }
+                if (canRead && forward != null) {
+                    canRead = !schemas.isEmpty() &&
+                            checker.canRead(schema, Collections.singletonList(schemas.get(0)));
                 }
                 return canRead;
-            }
+            default:
+                throw new IllegalArgumentException();
         }
-        // if no rules are set we will come here and return true always
-        return true;
     }
 
     /**

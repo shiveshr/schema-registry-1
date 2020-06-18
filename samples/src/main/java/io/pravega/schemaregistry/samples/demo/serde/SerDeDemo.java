@@ -30,10 +30,9 @@ import io.pravega.schemaregistry.GroupIdGenerator;
 import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.serializers.PravegaDeserializer;
 import io.pravega.schemaregistry.serializers.SerializerConfig;
@@ -91,7 +90,7 @@ public class SerDeDemo {
         streamManager.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
 
         SerializationFormat serializationFormat = SerializationFormat.custom("serDe");
-        client.addGroup(groupId, new GroupProperties(serializationFormat, Compatibility.of(BackwardAndForward.denyAll()),
+        client.addGroup(groupId, new GroupProperties(serializationFormat, Compatibility.denyAll(),
                 false));
     }
 

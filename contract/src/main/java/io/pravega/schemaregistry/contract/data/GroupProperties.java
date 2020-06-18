@@ -62,7 +62,7 @@ public class GroupProperties {
     }
     
     public static final class GroupPropertiesBuilder {
-        private Compatibility compatibility = BackwardAndForward.fullTransitive();
+        private Compatibility compatibility = Compatibility.fullTransitive();
         private boolean allowMultipleTypes = false;
         private ImmutableMap<String, String> properties = ImmutableMap.of();
 

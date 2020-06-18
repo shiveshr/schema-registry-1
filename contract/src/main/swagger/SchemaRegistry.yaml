@@ -192,7 +192,7 @@ paths:
           description: Namespace in which to lookup group. If no namespace is specified, default namespace is used.
       responses:
         200:
-          description: Updated schema validation policy
+          description: Updated schema compatibility policy
         404:
           description: Group with given name not found
         409:
@@ -327,7 +327,7 @@ paths:
           description: Group with given name not found
         500:
           description: Internal server error fetching version for schema
-  /groups/{groupName}/schemas/{schemaId}:
+  /groups/{groupName}/schemas/schema/{schemaId}:
     parameters:
       - in: path
         name: groupName
@@ -811,53 +811,31 @@ definitions:
       - versionInfo
       - codecType      
   Compatibility:
-      type: object
-      description: BackwardAndForward policy.
-      required:
-        - backwardAndForward
-      properties:
-        compatibility:
-          description: BackwardAndForward policy choice.   
-          oneOf:
-            - $ref: '#/definitions/AllowAny'
-            - $ref: '#/definitions/DenyAll'
-            - $ref: '#/definitions/BackwardAndForward'
-          discriminator:
-            propertyName: name
-            mapping:
-              AllowAny: "#/definitions/AllowAny"
-              DenyAll: "#/definitions/DenyAll"
-              BackwardAndForward: "#/definitions/BackwardAndForward"
-  AllowAny:
     type: object
-    description: Policy to Allow any change. 
+    description: Compatibility policy.
     properties:
-      name:
+      policy:
+        description: Compatibility policy enum.
         type: string
+        enum:
+          - AllowAny
+          - DenyAll
+          - BackwardAndForward
+      backwardAndForward:
+        description: Backward and forward policy details.
+        $ref: "#/definitions/BackwardAndForward"
     required:
-      - name
-  DenyAll:
-    type: object
-    description: Policy to Deny all changes. 
-    properties:
-      name:
-        type: string
-    required:
-      - name
+      - policy
   BackwardAndForward:
     type: object
     description: BackwardPolicy and forwardPolicy policy. 
     properties:
-      name:
-        type: string
       backwardPolicy:
         description: BackwardAndForward policy type that describes different types of BackwardPolicy policies like Backward, BackwardTransitive and BackwardTill.    
         $ref: "#/definitions/BackwardPolicy"
       forwardPolicy:
         description: BackwardAndForward policy type that describes different types of ForwardPolicy policies like Forward, ForwardTransitive and ForwardTill.  
         $ref: "#/definitions/ForwardPolicy"
-    required:
-      - name
   BackwardPolicy:
     type: object
     description: BackwardPolicy policy.

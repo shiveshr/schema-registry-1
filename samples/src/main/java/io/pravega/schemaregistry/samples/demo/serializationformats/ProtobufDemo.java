@@ -34,10 +34,9 @@ import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.samples.generated.ProtobufTest;
 import io.pravega.schemaregistry.schemas.ProtobufSchema;
@@ -99,7 +98,7 @@ public class ProtobufDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Protobuf;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.allowAny()),
+                    Compatibility.allowAny(),
                     false, ImmutableMap.of(SerializerFactory.ENCODE, Boolean.toString(encodeHeaders))));
 
             Path path = Paths.get("samples/resources/proto/protobufTest.pb");
@@ -181,7 +180,7 @@ public class ProtobufDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Protobuf;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.allowAny()),
+                    Compatibility.allowAny(),
                     true));
 
             Path path = Paths.get("samples/resources/proto/protobufTest.pb");

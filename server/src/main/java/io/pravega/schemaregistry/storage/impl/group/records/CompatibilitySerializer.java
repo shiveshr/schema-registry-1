@@ -12,17 +12,16 @@ package io.pravega.schemaregistry.storage.impl.group.records;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
-import io.pravega.schemaregistry.contract.data.VersionInfo;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 
 import java.io.IOException;
 
-public class CompatibilitySerializer extends VersionedSerializer.MultiType<Compa> {
+public class CompatibilitySerializer extends VersionedSerializer.WithBuilder<Compatibility, Compatibility.CompatibilityBuilder> {
     public static final CompatibilitySerializer SERIALIZER = new CompatibilitySerializer();
-    
+
     @Override
-    protected Compa.CompatibilityBuilder newBuilder() {
-        return BackwardAndForward.builder();
+    protected Compatibility.CompatibilityBuilder newBuilder() {
+        return Compatibility.builder();
     }
 
     @Override
@@ -36,31 +35,21 @@ public class CompatibilitySerializer extends VersionedSerializer.MultiType<Compa
         version(0).revision(0, this::write00, this::read00);
     }
 
-    private void write00(BackwardAndForward e, RevisionDataOutput target) throws IOException {
-        target.writeCompactInt(e.getCompatibility().ordinal());
-        target.writeBoolean(e.getBackwardTill() != null);
-        if (e.getBackwardTill() != null) {
-            VersionInfoSerializer.SERIALIZER.serialize(target, e.getBackwardTill());
+    private void write00(Compatibility e, RevisionDataOutput target) throws IOException {
+        target.writeCompactInt(e.getType().ordinal());
+        target.writeBoolean(e.getBackwardAndForward() != null);
+        if (e.getBackwardAndForward() != null) {
+            BackwardAndForwardSerializer.SERIALIZER.serialize(target, e.getBackwardAndForward());
         }
-        target.writeBoolean(e.getForwardTill() != null);
-        if (e.getForwardTill() != null) {
-            VersionInfoSerializer.SERIALIZER.serialize(target, e.getForwardTill());
-        } 
     }
-    
-    private void read00(RevisionDataInput source, BackwardAndForward.CompatibilityBuilder b) throws IOException {
+
+    private void read00(RevisionDataInput source, Compatibility.CompatibilityBuilder b) throws IOException {
         int ordinal = source.readCompactInt();
-        BackwardAndForward.Type compatibilityType = BackwardAndForward.Type.values()[ordinal];
-        b.compatibility(compatibilityType);
-        boolean backwardTillSpecified = source.readBoolean();
-        if (backwardTillSpecified) {
-            VersionInfo backwardTillRecord = VersionInfoSerializer.SERIALIZER.deserialize(source);
-            b.backwardTill(backwardTillRecord);
-        }
-        boolean forwardTillSpecified = source.readBoolean();
-        if (forwardTillSpecified) {
-            VersionInfo forwardTillRecord = VersionInfoSerializer.SERIALIZER.deserialize(source);
-            b.forwardTill(forwardTillRecord);
+        Compatibility.Type compatibilityType = Compatibility.Type.values()[ordinal];
+        b.type(compatibilityType);
+        boolean backwardAndForwardSpecified = source.readBoolean();
+        if (backwardAndForwardSpecified) {
+            b.backwardAndForward(BackwardAndForwardSerializer.SERIALIZER.deserialize(source));
         }
     }
 }

@@ -26,10 +26,9 @@ import io.pravega.schemaregistry.GroupIdGenerator;
 import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.schemas.AvroSchema;
@@ -177,7 +176,7 @@ public class SQLApp {
         }
 
         String tableGroupId = getTableGroupId(tableName);
-        Compatibility validationRules = Compatibility.of(BackwardAndForward.denyAll());
+        Compatibility validationRules = Compatibility.denyAll();
         SerializationFormat serializationFormat = SerializationFormat.custom("table");
 
         ImmutableMap.Builder<String, String> map = ImmutableMap.builder();

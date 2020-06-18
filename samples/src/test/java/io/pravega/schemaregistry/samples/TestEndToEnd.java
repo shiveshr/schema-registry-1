@@ -14,12 +14,11 @@ import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.codec.CodecFactory;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.EncodingId;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
@@ -119,7 +118,7 @@ public abstract class TestEndToEnd {
         int groupsCount = Lists.newArrayList(client.listGroups()).size();
 
         client.addGroup(group, new GroupProperties(SerializationFormat.Avro,
-                Compatibility.of(BackwardAndForward.backward()),
+                Compatibility.backward(),
                 true));
         assertEquals(Lists.newArrayList(client.listGroups()).size(), groupsCount + 1);
 
@@ -144,7 +143,7 @@ public abstract class TestEndToEnd {
         assertEquals(version2.getId(), 1);
         assertEquals(version2.getType(), myTest);
 
-        client.updateCompatibility(group, Compatibility.of(BackwardAndForward.fullTransitive()), null);
+        client.updateCompatibility(group, Compatibility.fullTransitive(), null);
 
         SchemaInfo schemaInfo3 = new SchemaInfo(myTest, SerializationFormat.Avro,
                 ByteBuffer.wrap(schema3.toString().getBytes(Charsets.UTF_8)), ImmutableMap.of());

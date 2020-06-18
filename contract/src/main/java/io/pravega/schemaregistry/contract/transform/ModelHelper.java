@@ -74,41 +74,38 @@ public class ModelHelper {
     }
 
     public static io.pravega.schemaregistry.contract.data.Compatibility decode(Compatibility compatibility) {
-        Object obj = compatibility.getCompatibility();
-        if (obj instanceof Map) {
-            String name = (String) ((Map) obj).get("name");
-            if (name.equals(ALLOW_ANY)) {
-                obj = MAPPER.convertValue(obj, AllowAny.class);
-            } else if (name.equals(DENY_ALL)) {
-                obj = MAPPER.convertValue(obj, DenyAll.class);
-            } else if (name.equals(BACKWARD_AND_FORWARD)) {
-                obj = MAPPER.convertValue(obj, BackwardAndForward.class);
-            } else {
+        io.pravega.schemaregistry.contract.data.Compatibility.Type type = searchEnum(io.pravega.schemaregistry.contract.data.Compatibility.Type.class, compatibility.getPolicy().name());
+        switch (type) {
+            case AllowAny:
+                return io.pravega.schemaregistry.contract.data.Compatibility.allowAny();
+            case DenyAll:
+                return io.pravega.schemaregistry.contract.data.Compatibility.denyAll();
+            case BackwardAndForward:
+                return io.pravega.schemaregistry.contract.data.Compatibility
+                        .builder()
+                        .type(type)
+                        .backwardAndForward(decode(compatibility.getBackwardAndForward())).build();
+            default:
                 throw new IllegalArgumentException();
-            }
-        }
-
-        if (obj instanceof AllowAny) {
-            return new io.pravega.schemaregistry.contract.data.AllowAny();
-        } else if (obj instanceof DenyAll) {
-            return new io.pravega.schemaregistry.contract.data.DenyAll();
-        } else if (obj instanceof BackwardAndForward) {
-            return decode((BackwardAndForward) obj);
-        } else {
-            throw new IllegalArgumentException();
         }
     }
 
     public static io.pravega.schemaregistry.contract.data.BackwardAndForward decode(BackwardAndForward compatibility) {
         Preconditions.checkArgument(compatibility.getBackwardPolicy() != null || compatibility.getForwardPolicy() != null);
 
-        return io.pravega.schemaregistry.contract.data.BackwardAndForward.builder()
-                                                                         .backwardPolicy(decode(compatibility.getBackwardPolicy()))
-                                                                         .forwardPolicy(decode(compatibility.getForwardPolicy())).build();
+        io.pravega.schemaregistry.contract.data.BackwardAndForward.BackwardAndForwardBuilder builder =
+                io.pravega.schemaregistry.contract.data.BackwardAndForward.builder();
+        if (compatibility.getBackwardPolicy() != null) {
+            builder.backwardPolicy(decode(compatibility.getBackwardPolicy()));
+        }
+        if (compatibility.getForwardPolicy() != null) {
+            builder.forwardPolicy(decode(compatibility.getForwardPolicy()));
+        }
+        return builder.build();
     }
 
     public static io.pravega.schemaregistry.contract.data.BackwardAndForward.BackwardPolicy decode(BackwardPolicy backward) {
-        Object obj = backward;
+        Object obj = backward.getBackwardPolicy();
         if (backward.getBackwardPolicy() instanceof Map) {
             String name = (String) ((Map) backward.getBackwardPolicy()).get("name");
             if (name.equals(BACKWARD)) {
@@ -153,7 +150,7 @@ public class ModelHelper {
             return new io.pravega.schemaregistry.contract.data.BackwardAndForward.Forward();
         } else if (obj instanceof ForwardTill) {
             return new io.pravega.schemaregistry.contract.data.BackwardAndForward.ForwardTill(
-                    decode(((io.pravega.schemaregistry.contract.generated.rest.model.BackwardTill) forward.getForwardPolicy()).getVersion()));
+                    decode(((io.pravega.schemaregistry.contract.generated.rest.model.ForwardTill) forward.getForwardPolicy()).getVersion()));
         } else if (obj instanceof ForwardTransitive) {
             return new io.pravega.schemaregistry.contract.data.BackwardAndForward.ForwardTransitive();
         } else {
@@ -216,23 +213,24 @@ public class ModelHelper {
     }
 
     public static Compatibility encode(io.pravega.schemaregistry.contract.data.Compatibility compatibility) {
-        if (compatibility instanceof io.pravega.schemaregistry.contract.data.AllowAny) {
-            return new Compatibility().compatibility(new AllowAny().name(ALLOW_ANY));
-        } else if (compatibility instanceof io.pravega.schemaregistry.contract.data.DenyAll) {
-            return new Compatibility().compatibility(new DenyAll().name(DENY_ALL));
-        } else if (compatibility instanceof io.pravega.schemaregistry.contract.data.BackwardAndForward) {
-            io.pravega.schemaregistry.contract.data.BackwardAndForward backwardAndForward =
-                    (io.pravega.schemaregistry.contract.data.BackwardAndForward) compatibility;
-            BackwardAndForward backwardAndForwardEncoded = new BackwardAndForward()
-                    .name(BACKWARD_AND_FORWARD)
-                    .backwardPolicy(encode(backwardAndForward.getBackwardPolicy()))
-                    .forwardPolicy(encode(backwardAndForward.getForwardPolicy()));
-            return new Compatibility().compatibility(backwardAndForwardEncoded);
-        } else {
-            throw new IllegalArgumentException();
+        Compatibility policy = new io.pravega.schemaregistry.contract.generated.rest.model.Compatibility()
+                .policy(searchEnum(Compatibility.PolicyEnum.class, compatibility.getType().name()));
+        if (policy.getPolicy().equals(Compatibility.PolicyEnum.BACKWARDANDFORWARD)) {
+            policy.backwardAndForward(encode(compatibility.getBackwardAndForward()));
         }
+        return policy;
     }
 
+    public static BackwardAndForward encode(io.pravega.schemaregistry.contract.data.BackwardAndForward backwardAndForward) {
+        BackwardAndForward retVal = new BackwardAndForward();
+        if (backwardAndForward.getBackwardPolicy() != null) {
+            retVal.backwardPolicy(encode(backwardAndForward.getBackwardPolicy()));
+        }
+        if (backwardAndForward.getForwardPolicy() != null) {
+            retVal.forwardPolicy(encode(backwardAndForward.getForwardPolicy()));
+        }
+        return retVal;
+    }
 
     public static BackwardPolicy encode(io.pravega.schemaregistry.contract.data.BackwardAndForward.BackwardPolicy backwardPolicy) {
         if (backwardPolicy instanceof io.pravega.schemaregistry.contract.data.BackwardAndForward.Backward) {
@@ -248,7 +246,7 @@ public class ModelHelper {
     }
 
     public static ForwardPolicy encode(io.pravega.schemaregistry.contract.data.BackwardAndForward.ForwardPolicy forwardPolicy) {
-        if (forwardPolicy instanceof io.pravega.schemaregistry.contract.data.BackwardAndForward.Backward) {
+        if (forwardPolicy instanceof io.pravega.schemaregistry.contract.data.BackwardAndForward.Forward) {
             return new ForwardPolicy().forwardPolicy(new Forward().name(Forward.class.getSimpleName()));
         } else if (forwardPolicy instanceof io.pravega.schemaregistry.contract.data.BackwardAndForward.ForwardTransitive) {
             return new ForwardPolicy().forwardPolicy(new ForwardTransitive().name(ForwardTransitive.class.getSimpleName()));

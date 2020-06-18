@@ -35,9 +35,8 @@ import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.codec.Codec;
 import io.pravega.schemaregistry.codec.CodecFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
-import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.exceptions.IncompatibleSchemaException;
 import io.pravega.schemaregistry.pravegastandalone.PravegaStandaloneUtils;
@@ -175,7 +174,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.backward()),
+                                                                    Compatibility.backward(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -286,7 +285,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.backward()),
+                                                                    Compatibility.backward(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registerCodec(true)
@@ -465,7 +464,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.backward()),
+                                                                    Compatibility.backward(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -530,7 +529,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.backward()),
+                                                                    Compatibility.backward(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -597,7 +596,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.backward()),
+                                                                    Compatibility.backward(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -714,7 +713,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.allowAny()),
+                                                                    Compatibility.allowAny(),
                                                                     false)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -806,7 +805,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         streamManager.close();
         SerializationFormat serializationFormat = SerializationFormat.Protobuf;
         client.addGroup(groupId, new GroupProperties(serializationFormat,
-                Compatibility.of(BackwardAndForward.allowAny()), true));
+                Compatibility.allowAny(), true));
 
         Path path = Paths.get("resources/proto/protobufTest.pb");
         byte[] schemaBytes = Files.readAllBytes(path);
@@ -819,7 +818,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.allowAny()),
+                                                                    Compatibility.allowAny(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -927,7 +926,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         streamManager.close();
         SerializationFormat serializationFormat = SerializationFormat.Json;
         client.addGroup(groupId, new GroupProperties(serializationFormat,
-                Compatibility.of(BackwardAndForward.allowAny()), 
+                Compatibility.allowAny(), 
                 false, ImmutableMap.of(SerializerFactory.ENCODE, Boolean.toString(encodeHeaders))));
         
         JSONSchema<DerivedUser2> schema = JSONSchema.of(DerivedUser2.class);
@@ -935,7 +934,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.allowAny()),
+                                                                    Compatibility.allowAny(),
                                                                     false)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -1007,7 +1006,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    Compatibility.of(BackwardAndForward.allowAny()),
+                                                                    Compatibility.allowAny(),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)

@@ -1,11 +1,11 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.schemaregistry.serializers;
 
@@ -15,10 +15,9 @@ import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.codec.Codec;
 import io.pravega.schemaregistry.codec.CodecFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -43,7 +42,7 @@ public class SerializerConfig {
     private final static Codec GZIP = CodecFactory.gzip();
     private final static Codec SNAPPY = CodecFactory.snappy();
 
-    
+
     /**
      * Name of the group. 
      */
@@ -114,7 +113,7 @@ public class SerializerConfig {
         }
 
         public SerializerConfigBuilder createGroup(SerializationFormat serializationFormat, boolean allowMultipleTypes) {
-            return createGroup(serializationFormat, Compatibility.of(BackwardAndForward.fullTransitive()), allowMultipleTypes);
+            return createGroup(serializationFormat, Compatibility.fullTransitive(), allowMultipleTypes);
         }
 
         public SerializerConfigBuilder createGroup(SerializationFormat serializationFormat, Compatibility rules, boolean allowMultipleTypes) {
@@ -122,13 +121,13 @@ public class SerializerConfig {
             this.groupProperties = new GroupProperties(serializationFormat, rules, allowMultipleTypes);
             return this;
         }
-        
+
         public SerializerConfigBuilder registryClient(SchemaRegistryClient client) {
             Preconditions.checkArgument(client != null);
             this.registryConfigOrClient = Either.right(client);
             return this;
         }
-        
+
         public SerializerConfigBuilder registryConfig(SchemaRegistryClientConfig config) {
             Preconditions.checkArgument(config != null);
             this.registryConfigOrClient = Either.left(config);

@@ -28,34 +28,11 @@ import javax.validation.constraints.*;
 @ApiModel(description = "BackwardPolicy and forwardPolicy policy.")
 
 public class BackwardAndForward   {
-  @JsonProperty("name")
-  private String name = null;
-
   @JsonProperty("backwardPolicy")
   private BackwardPolicy backwardPolicy = null;
 
   @JsonProperty("forwardPolicy")
   private ForwardPolicy forwardPolicy = null;
-
-  public BackwardAndForward name(String name) {
-    this.name = name;
-    return this;
-  }
-
-  /**
-   * Get name
-   * @return name
-   **/
-  @JsonProperty("name")
-  @ApiModelProperty(required = true, value = "")
-  @NotNull
-  public String getName() {
-    return name;
-  }
-
-  public void setName(String name) {
-    this.name = name;
-  }
 
   public BackwardAndForward backwardPolicy(BackwardPolicy backwardPolicy) {
     this.backwardPolicy = backwardPolicy;
@@ -105,14 +82,13 @@ public class BackwardAndForward   {
       return false;
     }
     BackwardAndForward backwardAndForward = (BackwardAndForward) o;
-    return Objects.equals(this.name, backwardAndForward.name) &&
-        Objects.equals(this.backwardPolicy, backwardAndForward.backwardPolicy) &&
+    return Objects.equals(this.backwardPolicy, backwardAndForward.backwardPolicy) &&
         Objects.equals(this.forwardPolicy, backwardAndForward.forwardPolicy);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, backwardPolicy, forwardPolicy);
+    return Objects.hash(backwardPolicy, forwardPolicy);
   }
 
 
@@ -121,7 +97,6 @@ public class BackwardAndForward   {
     StringBuilder sb = new StringBuilder();
     sb.append("class BackwardAndForward {\n");
     
-    sb.append("    name: ").append(toIndentedString(name)).append("\n");
     sb.append("    backwardPolicy: ").append(toIndentedString(backwardPolicy)).append("\n");
     sb.append("    forwardPolicy: ").append(toIndentedString(forwardPolicy)).append("\n");
     sb.append("}");

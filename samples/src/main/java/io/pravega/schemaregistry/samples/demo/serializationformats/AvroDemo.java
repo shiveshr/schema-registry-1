@@ -31,10 +31,9 @@ import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.BackwardAndForward;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.samples.generated.Test1;
 import io.pravega.schemaregistry.samples.generated.Test2;
@@ -137,7 +136,7 @@ public class AvroDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Avro;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.backward()),
+                    Compatibility.backward(),
                     true));
 
             System.out.println("registering schema " + SCHEMA1.toString(true));
@@ -260,7 +259,7 @@ public class AvroDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Avro;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.backward()),
+                    Compatibility.backward(),
                     true));
 
             AvroSchema<TestClass> schema = AvroSchema.of(TestClass.class);
@@ -324,7 +323,7 @@ public class AvroDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Avro;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.backward()),
+                    Compatibility.backward(),
                     true));
 
             AvroSchema<Test1> schema = AvroSchema.of(Test1.class);
@@ -387,7 +386,7 @@ public class AvroDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Avro;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    Compatibility.of(BackwardAndForward.backward()),
+                    Compatibility.backward(),
                     true));
 
             AvroSchema<SpecificRecordBase> schema1 = AvroSchema.ofBaseType(Test1.class);

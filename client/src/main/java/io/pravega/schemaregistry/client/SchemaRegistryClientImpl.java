@@ -101,7 +101,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
                 case CONFLICT:
                     return false;
                 case BAD_REQUEST:
-                    throw new BadArgumentException("Group properties invalid. Verify that compatibility include compatibility.");
+                    throw new BadArgumentException("Group properties invalid.");
                 default:
                     throw new InternalServerError("Internal Service error. Failed to add the group.");
             }

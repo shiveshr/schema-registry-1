@@ -16,36 +16,94 @@ package io.pravega.schemaregistry.contract.generated.rest.model;
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+import io.pravega.schemaregistry.contract.generated.rest.model.BackwardAndForward;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
 
 /**
- * BackwardAndForward policy.
+ * Compatibility policy.
  */
-@ApiModel(description = "BackwardAndForward policy.")
+@ApiModel(description = "Compatibility policy.")
 
 public class Compatibility   {
-  @JsonProperty("compatibility")
-  private Object compatibility = null;
+  /**
+   * Compatibility policy enum.
+   */
+  public enum PolicyEnum {
+    ALLOWANY("AllowAny"),
+    
+    DENYALL("DenyAll"),
+    
+    BACKWARDANDFORWARD("BackwardAndForward");
 
-  public Compatibility compatibility(Object compatibility) {
-    this.compatibility = compatibility;
+    private String value;
+
+    PolicyEnum(String value) {
+      this.value = value;
+    }
+
+    @Override
+    @JsonValue
+    public String toString() {
+      return String.valueOf(value);
+    }
+
+    @JsonCreator
+    public static PolicyEnum fromValue(String text) {
+      for (PolicyEnum b : PolicyEnum.values()) {
+        if (String.valueOf(b.value).equals(text)) {
+          return b;
+        }
+      }
+      return null;
+    }
+  }
+
+  @JsonProperty("policy")
+  private PolicyEnum policy = null;
+
+  @JsonProperty("backwardAndForward")
+  private BackwardAndForward backwardAndForward = null;
+
+  public Compatibility policy(PolicyEnum policy) {
+    this.policy = policy;
     return this;
   }
 
   /**
-   * BackwardAndForward policy choice.
-   * @return compatibility
+   * Compatibility policy enum.
+   * @return policy
    **/
-  @JsonProperty("compatibility")
-  @ApiModelProperty(value = "BackwardAndForward policy choice.")
-  public Object getCompatibility() {
-    return compatibility;
+  @JsonProperty("policy")
+  @ApiModelProperty(required = true, value = "Compatibility policy enum.")
+  @NotNull
+  public PolicyEnum getPolicy() {
+    return policy;
   }
 
-  public void setCompatibility(Object compatibility) {
-    this.compatibility = compatibility;
+  public void setPolicy(PolicyEnum policy) {
+    this.policy = policy;
+  }
+
+  public Compatibility backwardAndForward(BackwardAndForward backwardAndForward) {
+    this.backwardAndForward = backwardAndForward;
+    return this;
+  }
+
+  /**
+   * Backward and forward policy details.
+   * @return backwardAndForward
+   **/
+  @JsonProperty("backwardAndForward")
+  @ApiModelProperty(value = "Backward and forward policy details.")
+  public BackwardAndForward getBackwardAndForward() {
+    return backwardAndForward;
+  }
+
+  public void setBackwardAndForward(BackwardAndForward backwardAndForward) {
+    this.backwardAndForward = backwardAndForward;
   }
 
 
@@ -58,12 +116,13 @@ public class Compatibility   {
       return false;
     }
     Compatibility compatibility = (Compatibility) o;
-    return Objects.equals(this.compatibility, compatibility.compatibility);
+    return Objects.equals(this.policy, compatibility.policy) &&
+        Objects.equals(this.backwardAndForward, compatibility.backwardAndForward);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(compatibility);
+    return Objects.hash(policy, backwardAndForward);
   }
 
 
@@ -72,7 +131,8 @@ public class Compatibility   {
     StringBuilder sb = new StringBuilder();
     sb.append("class Compatibility {\n");
     
-    sb.append("    compatibility: ").append(toIndentedString(compatibility)).append("\n");
+    sb.append("    policy: ").append(toIndentedString(policy)).append("\n");
+    sb.append("    backwardAndForward: ").append(toIndentedString(backwardAndForward)).append("\n");
     sb.append("}");
     return sb.toString();
   }

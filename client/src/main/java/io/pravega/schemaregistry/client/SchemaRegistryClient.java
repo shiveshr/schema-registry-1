@@ -297,7 +297,7 @@ public interface SchemaRegistryClient {
      * @param groupId Id for the group. 
      * @param schemaInfo Schema to check for validity. 
      * @return A schema is valid if it passes all the {@link GroupProperties#compatibility}. The rule supported 
-     * presently, is BackwardAndForward. If desired compatibility is satisfied by the schema then this method returns true, false otherwise. 
+     * are allow any, deny all or a combination of BackwardAndForward. If desired compatibility is satisfied by the schema then this method returns true, false otherwise. 
      * @throws ResourceNotFoundException if group is not found. 
      * @throws UnauthorizedException if the user is unauthorized.
      */

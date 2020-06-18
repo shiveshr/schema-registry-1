@@ -199,7 +199,7 @@ public class ApiV1 {
                                @ApiParam(value = "namespace") @QueryParam("namespace") String namespace);
 
         @DELETE
-        @Path("/{groupName}/schemas/{schemaId}")
+        @Path("/{groupName}/schemas/schema/{schemaId}")
         @Produces({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "Delete schema version from the group.", response = Void.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
@@ -211,7 +211,7 @@ public class ApiV1 {
                                                 @ApiParam(value = "namespace") @QueryParam("namespace") String namespace);
 
         @GET
-        @Path("/{groupName}/schemas/{schemaId}")
+        @Path("/{groupName}/schemas/schema/{schemaId}")
         @Produces({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "Get schema from the version id that uniquely identifies the schema in the group.", response = SchemaInfo.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
@@ -461,7 +461,7 @@ public class ApiV1 {
                            @Suspended AsyncResponse asyncResponse);
 
         @GET
-        @Path("/{groupName}/schemas/{schemaId}")
+        @Path("/{groupName}/schemas/schema/{schemaId}")
         @Produces({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "Get schema from the version id that uniquely identifies the schema in the group.", response = SchemaInfo.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
@@ -474,7 +474,7 @@ public class ApiV1 {
                                          @Suspended AsyncResponse asyncResponse);
 
         @DELETE
-        @Path("/{groupName}/schemas/{schemaId}")
+        @Path("/{groupName}/schemas/schema/{schemaId}")
         @Produces({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "Delete schema version from the group.", response = Void.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
