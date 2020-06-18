@@ -39,7 +39,7 @@ public interface SchemaRegistryClient {
      * Add group is idempotent. If the group by the same id already exists the api will return false. 
      * 
      * @param groupId Id for the group that uniquely identifies the group. 
-     * @param groupProperties groupProperties Group properties for the group. These include serialization format, compatibility, 
+     * @param groupProperties groupProperties Group properties for the group. These include serialization format, compatibility policy, 
      *                        and flag to declare whether multiple schemas representing distinct object types can be 
      *                        registered with the group. Type identify objects of same type. Schema compatibility checks 
      *                        are always performed for schemas that share same {@link SchemaInfo#type}.
@@ -88,19 +88,19 @@ public interface SchemaRegistryClient {
     GroupProperties getGroupProperties(String groupId) throws ResourceNotFoundException, UnauthorizedException;
 
     /**
-     * Update group's schema compatibility policy. If previous rules are not supplied, then the update to the rules will be
-     * performed unconditionally. However, if previous rules are supplied, then the update will be performed if and only if
-     * existing {@link GroupProperties#compatibility} match previous rules. 
+     * Update group's schema compatibility policy. If previous compatibility policy are not supplied, then the update to the policy will be
+     * performed unconditionally. However, if previous compatibility policy are supplied, then the update will be performed if and only if
+     * existing {@link GroupProperties#compatibility} match previous compatibility policy. 
      * 
      * @param groupId Id for the group. 
      * @param compatibility New Compatibility for the group.
-     * @param previousCompatibility Previous compatibility.
+     * @param previous Previous compatibility.
      * @return true if the update was accepted by the service, false if it was rejected because of precondition failure.
-     * Precondition failure can occur if previous rules were specified and they do not match the rules set on the group. 
+     * Precondition failure can occur if previous compatibility policy were specified and they do not match the policy set on the group. 
      * @throws ResourceNotFoundException if group is not found.
      * @throws UnauthorizedException if the user is unauthorized.
      */
-    boolean updateCompatibility(String groupId, Compatibility compatibility, @Nullable Compatibility previousCompatibility)
+    boolean updateCompatibility(String groupId, Compatibility compatibility, @Nullable Compatibility previous)
         throws ResourceNotFoundException, UnauthorizedException;
 
     /**
@@ -281,18 +281,18 @@ public interface SchemaRegistryClient {
      * 
      * @param groupId Id for the group.
      * @param schemaType type of object identified by {@link SchemaInfo#type}. 
-     * @return Ordered list of schemas with versions and compatibility for all schemas in the group. 
+     * @return Ordered list of schemas with versions and compatibility policy for all schemas in the group. 
      * @throws ResourceNotFoundException if group is not found. 
      * @throws UnauthorizedException if the user is unauthorized.
      */
     List<SchemaWithVersion> getSchemaVersions(String groupId, @Nullable String schemaType) throws ResourceNotFoundException, UnauthorizedException;
     
     /**
-     * Checks whether given schema is valid by applying compatibility against previous schemas in the group  
+     * Checks whether given schema is valid by applying compatibility policy against previous schemas in the group  
      * subject to current {@link GroupProperties#compatibility} policy.
      * The invocation of this method will perform exactly the same validations as {@link SchemaRegistryClient#addSchema(String, SchemaInfo)}
      * but without registering the schema. This is primarily intended to be used during schema development phase to validate that 
-     * the changes to schema are in compliance with compatibility for the group.  
+     * the changes to schema are in compliance with compatibility policy for the group.  
      * 
      * @param groupId Id for the group. 
      * @param schemaInfo Schema to check for validity. 
