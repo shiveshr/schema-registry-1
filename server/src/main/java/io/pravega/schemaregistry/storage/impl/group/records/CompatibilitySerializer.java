@@ -12,17 +12,17 @@ package io.pravega.schemaregistry.storage.impl.group.records;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 
 import java.io.IOException;
 
-public class CompatibilitySerializer extends VersionedSerializer.WithBuilder<Compatibility, Compatibility.CompatibilityBuilder> {
+public class CompatibilitySerializer extends VersionedSerializer.MultiType<Compa> {
     public static final CompatibilitySerializer SERIALIZER = new CompatibilitySerializer();
     
     @Override
-    protected Compatibility.CompatibilityBuilder newBuilder() {
-        return Compatibility.builder();
+    protected Compa.CompatibilityBuilder newBuilder() {
+        return BackwardAndForward.builder();
     }
 
     @Override
@@ -36,7 +36,7 @@ public class CompatibilitySerializer extends VersionedSerializer.WithBuilder<Com
         version(0).revision(0, this::write00, this::read00);
     }
 
-    private void write00(Compatibility e, RevisionDataOutput target) throws IOException {
+    private void write00(BackwardAndForward e, RevisionDataOutput target) throws IOException {
         target.writeCompactInt(e.getCompatibility().ordinal());
         target.writeBoolean(e.getBackwardTill() != null);
         if (e.getBackwardTill() != null) {
@@ -48,9 +48,9 @@ public class CompatibilitySerializer extends VersionedSerializer.WithBuilder<Com
         } 
     }
     
-    private void read00(RevisionDataInput source, Compatibility.CompatibilityBuilder b) throws IOException {
+    private void read00(RevisionDataInput source, BackwardAndForward.CompatibilityBuilder b) throws IOException {
         int ordinal = source.readCompactInt();
-        Compatibility.Type compatibilityType = Compatibility.Type.values()[ordinal];
+        BackwardAndForward.Type compatibilityType = BackwardAndForward.Type.values()[ordinal];
         b.compatibility(compatibilityType);
         boolean backwardTillSpecified = source.readBoolean();
         if (backwardTillSpecified) {

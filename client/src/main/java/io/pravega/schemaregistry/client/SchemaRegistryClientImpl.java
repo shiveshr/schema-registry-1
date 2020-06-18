@@ -14,12 +14,12 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry;
 import io.pravega.schemaregistry.common.AuthHelper;
 import io.pravega.schemaregistry.common.ContinuationTokenIterator;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.EncodingId;
 import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 import io.pravega.schemaregistry.contract.generated.rest.model.CanRead;
@@ -28,7 +28,7 @@ import io.pravega.schemaregistry.contract.generated.rest.model.CreateGroupReques
 import io.pravega.schemaregistry.contract.generated.rest.model.GetEncodingIdRequest;
 import io.pravega.schemaregistry.contract.generated.rest.model.ListGroupsResponse;
 import io.pravega.schemaregistry.contract.generated.rest.model.SchemaVersionsList;
-import io.pravega.schemaregistry.contract.generated.rest.model.UpdateValidationRulesRequest;
+import io.pravega.schemaregistry.contract.generated.rest.model.UpdateCompatibilityRequest;
 import io.pravega.schemaregistry.contract.generated.rest.model.Valid;
 import io.pravega.schemaregistry.contract.generated.rest.model.ValidateRequest;
 import io.pravega.schemaregistry.contract.transform.ModelHelper;
@@ -101,7 +101,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
                 case CONFLICT:
                     return false;
                 case BAD_REQUEST:
-                    throw new BadArgumentException("Group properties invalid. Verify that schema validation rules include compatibility.");
+                    throw new BadArgumentException("Group properties invalid. Verify that compatibility include compatibility.");
                 default:
                     throw new InternalServerError("Internal Service error. Failed to add the group.");
             }
@@ -165,15 +165,15 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
     }
 
     @Override
-    public boolean updateSchemaValidationRules(String groupId, SchemaValidationRules validationRules, @Nullable SchemaValidationRules previousRules) {
+    public boolean updateCompatibility(String groupId, Compatibility compatibility, @Nullable Compatibility previousRules) {
         return withRetry(() -> {
-            UpdateValidationRulesRequest request = new UpdateValidationRulesRequest()
-                    .validationRules(ModelHelper.encode(validationRules));
+            UpdateCompatibilityRequest request = new UpdateCompatibilityRequest()
+                    .compatibility(ModelHelper.encode(compatibility));
             if (previousRules != null) {
-                request.setPreviousRules(ModelHelper.encode(previousRules));
+                request.setPreviousCompatibility(ModelHelper.encode(previousRules));
             }
 
-            Response response = groupProxy.updateSchemaValidationRules(groupId, request, namespace);
+            Response response = groupProxy.updateCompatibility(groupId, request, namespace);
             switch (Response.Status.fromStatusCode(response.getStatus())) {
                 case CONFLICT:
                     return false;
@@ -182,7 +182,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
                 case OK:
                     return true;
                 default:
-                    throw new InternalServerError("Internal Service error. Failed to update schema validation rules.");
+                    throw new InternalServerError("Internal Service error. Failed to update compatibility.");
             }
         });
     }
@@ -231,7 +231,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
     @Override
     public void deleteSchemaVersion(String groupId, VersionInfo versionInfo) {
         withRetry(() -> {
-            Response response = groupProxy.deleteSchemaFromVersionOrdinal(groupId, versionInfo.getOrdinal(), namespace);
+            Response response = groupProxy.deleteSchemaForId(groupId, versionInfo.getId(), namespace);
             if (response.getStatus() == Response.Status.NOT_FOUND.getStatusCode()) {
                 throw new ResourceNotFoundException("Group not found.");
             } else if (response.getStatus() != Response.Status.NO_CONTENT.getStatusCode()) {
@@ -255,7 +255,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
     @Override
     public SchemaInfo getSchemaForVersion(String groupId, VersionInfo versionInfo) {
         return withRetry(() -> {
-            Response response = groupProxy.getSchemaFromVersionOrdinal(groupId, versionInfo.getOrdinal(), namespace);
+            Response response = groupProxy.getSchemaForId(groupId, versionInfo.getId(), namespace);
             switch (Response.Status.fromStatusCode(response.getStatus())) {
                 case OK:
                     return ModelHelper.decode(response.readEntity(io.pravega.schemaregistry.contract.generated.rest.model.SchemaInfo.class));
@@ -321,7 +321,7 @@ public class SchemaRegistryClientImpl implements SchemaRegistryClient {
     public SchemaWithVersion getLatestSchemaVersion(String groupId, @Nullable String schemaType) {
         List<SchemaWithVersion> list = latestSchemas(groupId, schemaType);
         if (schemaType == null) {
-            return list.stream().max(Comparator.comparingInt(x -> x.getVersionInfo().getOrdinal())).orElse(null);
+            return list.stream().max(Comparator.comparingInt(x -> x.getVersionInfo().getId())).orElse(null);
         } else {
             return list.get(0);
         }

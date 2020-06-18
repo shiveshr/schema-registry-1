@@ -16,7 +16,7 @@ import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 import io.pravega.schemaregistry.storage.ContinuationToken;
@@ -67,7 +67,7 @@ public class SchemaStoreImpl<T> implements SchemaStore {
     }
 
     @Override
-    public CompletableFuture<Void> updateValidationRules(String namespace, String groupId, Etag etag, SchemaValidationRules policy) {
+    public CompletableFuture<Void> updateValidationRules(String namespace, String groupId, Etag etag, Compatibility policy) {
         return getGroup(namespace, groupId)
                 .thenCompose(grp -> grp.updateValidationPolicy(policy, etag));
     }
@@ -85,7 +85,7 @@ public class SchemaStoreImpl<T> implements SchemaStore {
 
     @Override
     public CompletableFuture<List<SchemaWithVersion>> listSchemas(String namespace, String groupId, VersionInfo from) {
-        return getGroup(namespace, groupId).thenCompose(grp -> grp.getSchemas(from.getOrdinal()));
+        return getGroup(namespace, groupId).thenCompose(grp -> grp.getSchemas(from.getId()));
     }
 
     @Override
@@ -95,7 +95,7 @@ public class SchemaStoreImpl<T> implements SchemaStore {
 
     @Override
     public CompletableFuture<List<SchemaWithVersion>> listSchemasByType(String namespace, String groupId, String type, VersionInfo from) {
-        return getGroup(namespace, groupId).thenCompose(grp -> grp.getSchemas(type, from.getOrdinal()));
+        return getGroup(namespace, groupId).thenCompose(grp -> grp.getSchemas(type, from.getId()));
     }
 
     @Override

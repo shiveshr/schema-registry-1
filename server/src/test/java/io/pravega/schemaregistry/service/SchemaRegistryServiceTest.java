@@ -13,9 +13,9 @@ import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.schemaregistry.ListWithToken;
 import io.pravega.schemaregistry.MapWithToken;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.storage.SchemaStore;
 import io.pravega.schemaregistry.storage.StoreExceptions;
@@ -58,7 +58,7 @@ public class SchemaRegistryServiceTest {
         }).when(store).listGroups(any(), any(), anyInt());
         doAnswer(x -> {
             return CompletableFuture.completedFuture(new GroupProperties(SerializationFormat.Avro, 
-                    SchemaValidationRules.of(Compatibility.backward()), false));
+                    Compatibility.of(BackwardAndForward.backward()), false));
         }).when(store).getGroupProperties(any(), eq("grp1"));
         
         doAnswer(x -> {

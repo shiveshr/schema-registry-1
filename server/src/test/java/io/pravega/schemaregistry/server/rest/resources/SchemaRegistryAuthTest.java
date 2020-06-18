@@ -14,9 +14,9 @@ import com.google.common.base.Strings;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.schemaregistry.MapWithToken;
 import io.pravega.schemaregistry.common.AuthHelper;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.contract.generated.rest.model.ListGroupsResponse;
 import io.pravega.schemaregistry.server.rest.RegistryApplication;
@@ -94,7 +94,7 @@ public class SchemaRegistryAuthTest extends JerseyTest {
     @Test(timeout = 10000)
     public void groups() throws ExecutionException, InterruptedException {
         GroupProperties group1 = new GroupProperties(SerializationFormat.Avro,
-                SchemaValidationRules.of(Compatibility.backward()),
+                Compatibility.of(BackwardAndForward.backward()),
                 false);
         doAnswer(x -> {
             return CompletableFuture.completedFuture(new MapWithToken<>(new HashMap<>(), ContinuationToken.fromString("token")));

@@ -35,9 +35,9 @@ import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.codec.Codec;
 import io.pravega.schemaregistry.codec.CodecFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.exceptions.IncompatibleSchemaException;
 import io.pravega.schemaregistry.pravegastandalone.PravegaStandaloneUtils;
@@ -107,7 +107,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
             .noDefault()
             .name("b")
             .type(Schema.create(Schema.Type.STRING))
-            .withDefault("backward compatible with schema1")
+            .withDefault("backwardPolicy compatible with schema1")
             .endRecord();
 
     private static final Schema SCHEMA3 = SchemaBuilder
@@ -175,7 +175,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.backward()),
+                                                                    Compatibility.of(BackwardAndForward.backward()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -200,7 +200,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         // endregion
         
         // region writer with schema3
-        // this should throw exception as schema change is not backward compatible.
+        // this should throw exception as schema change is not backwardPolicy compatible.
         boolean exceptionThrown = false;
         try {
             serializer = SerializerFactory.avroSerializer(serializerConfig, schema3);
@@ -286,7 +286,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.backward()),
+                                                                    Compatibility.of(BackwardAndForward.backward()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registerCodec(true)
@@ -465,7 +465,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.backward()),
+                                                                    Compatibility.of(BackwardAndForward.backward()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -530,7 +530,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.backward()),
+                                                                    Compatibility.of(BackwardAndForward.backward()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -597,7 +597,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.backward()),
+                                                                    Compatibility.of(BackwardAndForward.backward()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -714,7 +714,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.allowAny()),
+                                                                    Compatibility.of(BackwardAndForward.allowAny()),
                                                                     false)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -806,7 +806,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         streamManager.close();
         SerializationFormat serializationFormat = SerializationFormat.Protobuf;
         client.addGroup(groupId, new GroupProperties(serializationFormat,
-                SchemaValidationRules.of(Compatibility.allowAny()), true));
+                Compatibility.of(BackwardAndForward.allowAny()), true));
 
         Path path = Paths.get("resources/proto/protobufTest.pb");
         byte[] schemaBytes = Files.readAllBytes(path);
@@ -819,7 +819,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.allowAny()),
+                                                                    Compatibility.of(BackwardAndForward.allowAny()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -927,7 +927,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         streamManager.close();
         SerializationFormat serializationFormat = SerializationFormat.Json;
         client.addGroup(groupId, new GroupProperties(serializationFormat,
-                SchemaValidationRules.of(Compatibility.allowAny()), 
+                Compatibility.of(BackwardAndForward.allowAny()), 
                 false, ImmutableMap.of(SerializerFactory.ENCODE, Boolean.toString(encodeHeaders))));
         
         JSONSchema<DerivedUser2> schema = JSONSchema.of(DerivedUser2.class);
@@ -935,7 +935,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.allowAny()),
+                                                                    Compatibility.of(BackwardAndForward.allowAny()),
                                                                     false)
                                                             .registerSchema(true)
                                                             .registryClient(client)
@@ -1007,7 +1007,7 @@ public class TestPravegaClientEndToEnd implements AutoCloseable {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(serializationFormat,
-                                                                    SchemaValidationRules.of(Compatibility.allowAny()),
+                                                                    Compatibility.of(BackwardAndForward.allowAny()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)

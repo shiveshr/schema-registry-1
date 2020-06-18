@@ -10,9 +10,9 @@
 package io.pravega.schemaregistry.server.rest.resources;
 
 import io.pravega.schemaregistry.MapWithToken;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.contract.generated.rest.model.CanRead;
 import io.pravega.schemaregistry.contract.generated.rest.model.ListGroupsResponse;
@@ -73,7 +73,7 @@ public class SchemaRegistryResourceTest extends JerseyTest {
     @Test
     public void groups() throws ExecutionException, InterruptedException {
         GroupProperties group1 = new GroupProperties(SerializationFormat.Avro,
-                SchemaValidationRules.of(Compatibility.backward()),
+                Compatibility.of(BackwardAndForward.backward()),
                 false);
         doAnswer(x -> {
             Map<String, GroupProperties> map = new HashMap<>();

@@ -29,8 +29,8 @@ import io.pravega.schemaregistry.GroupIdGenerator;
 import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.Compatibility;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.samples.generated.ProtobufTest;
 import io.pravega.schemaregistry.schemas.ProtobufSchema;
@@ -150,7 +150,7 @@ public class MessageBusConsumerProto {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(SerializationFormat.Protobuf,
-                                                                    SchemaValidationRules.of(Compatibility.allowAny()),
+                                                                    Compatibility.of(BackwardAndForward.allowAny()),
                                                                     true)
                                                             .registerSchema(true)
                                                             .registryClient(client)

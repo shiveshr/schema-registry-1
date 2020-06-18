@@ -17,7 +17,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.schemaregistry.contract.data.EncodingId;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 import lombok.AllArgsConstructor;
@@ -184,7 +184,7 @@ public interface TableRecords {
     class ValidationRecord implements TableValue {
         public static final ValidationRecord.Serializer SERIALIZER = new ValidationRecord.Serializer();
 
-        private final SchemaValidationRules validationRules;
+        private final Compatibility validationRules;
 
         @Override
         @SneakyThrows
@@ -212,11 +212,11 @@ public interface TableRecords {
             }
 
             private void write00(ValidationRecord e, RevisionDataOutput target) throws IOException {
-                SchemaValidationRulesSerializer.SERIALIZER.serialize(target, e.validationRules);
+                CompatibilitySerializer.SERIALIZER.serialize(target, e.validationRules);
             }
 
             private void read00(RevisionDataInput source, ValidationRecordBuilder b) throws IOException {
-                b.validationRules(SchemaValidationRulesSerializer.SERIALIZER.deserialize(source));
+                b.validationRules(CompatibilitySerializer.SERIALIZER.deserialize(source));
             }
         }
     }
@@ -468,7 +468,7 @@ public interface TableRecords {
 
         private final SchemaInfo schemaInfo;
         private final VersionInfo versionInfo;
-        private final SchemaValidationRules validationRules;
+        private final Compatibility validationRules;
         private final long timestamp;
 
         @Override
@@ -499,14 +499,14 @@ public interface TableRecords {
             private void write00(SchemaRecord e, RevisionDataOutput target) throws IOException {
                 SchemaInfoSerializer.SERIALIZER.serialize(target, e.schemaInfo);
                 VersionInfoSerializer.SERIALIZER.serialize(target, e.versionInfo);
-                SchemaValidationRulesSerializer.SERIALIZER.serialize(target, e.validationRules);
+                CompatibilitySerializer.SERIALIZER.serialize(target, e.validationRules);
                 target.writeLong(e.timestamp);
             }
 
             private void read00(RevisionDataInput source, SchemaRecord.SchemaRecordBuilder b) throws IOException {
                 b.schemaInfo(SchemaInfoSerializer.SERIALIZER.deserialize(source))
                  .versionInfo(VersionInfoSerializer.SERIALIZER.deserialize(source))
-                 .validationRules(SchemaValidationRulesSerializer.SERIALIZER.deserialize(source))
+                 .validationRules(CompatibilitySerializer.SERIALIZER.deserialize(source))
                  .timestamp(source.readLong());
             }
         }

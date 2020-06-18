@@ -12,8 +12,7 @@ package io.pravega.schemaregistry.storage.impl.group.records;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRule;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
@@ -22,15 +21,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Schema validation rules that are applied for checking if a schema is valid. 
+ * Compatibility that are applied for checking if a schema is valid. 
  * This contains a set of rules. The schema will be compared against one or more existing schemas in the group by applying the rule. 
  */
-public class SchemaValidationRulesSerializer extends VersionedSerializer.WithBuilder<SchemaValidationRules, SchemaValidationRules.SchemaValidationRulesBuilder> {
-    public static final SchemaValidationRulesSerializer SERIALIZER = new SchemaValidationRulesSerializer();
+public class CompatibilitySerializer extends VersionedSerializer.WithBuilder<Compatibility, Compatibility.CompatibilityBuilder> {
+    public static final CompatibilitySerializer SERIALIZER = new CompatibilitySerializer();
     
     @Override
-    protected SchemaValidationRules.SchemaValidationRulesBuilder newBuilder() {
-        return SchemaValidationRules.builder();
+    protected Compatibility.CompatibilityBuilder newBuilder() {
+        return Compatibility.builder();
     }
 
     @Override
@@ -44,7 +43,7 @@ public class SchemaValidationRulesSerializer extends VersionedSerializer.WithBui
     }
 
     @SneakyThrows(IOException.class)
-    private void write00(SchemaValidationRules e, RevisionDataOutput target) throws IOException {
+    private void write00(Compatibility e, RevisionDataOutput target) throws IOException {
         target.writeCompactInt(e.getRules().size());
         for (Map.Entry<String, SchemaValidationRule> rule : e.getRules().entrySet()) {
             target.writeUTF(rule.getKey());
@@ -57,7 +56,7 @@ public class SchemaValidationRulesSerializer extends VersionedSerializer.WithBui
     }
 
     @SneakyThrows(IOException.class)
-    private void read00(RevisionDataInput source, SchemaValidationRules.SchemaValidationRulesBuilder b) throws IOException {
+    private void read00(RevisionDataInput source, Compatibility.CompatibilityBuilder b) throws IOException {
         int count = source.readCompactInt();
         Map<String, SchemaValidationRule> rules = new HashMap<>();
         for (int i = 0; i < count; i++) {

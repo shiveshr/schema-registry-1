@@ -31,10 +31,10 @@ import io.pravega.schemaregistry.client.SchemaRegistryClient;
 import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
 import io.pravega.schemaregistry.common.Either;
-import io.pravega.schemaregistry.contract.data.Compatibility;
+import io.pravega.schemaregistry.contract.data.BackwardAndForward;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.samples.demo.objects.Address;
 import io.pravega.schemaregistry.samples.demo.objects.DerivedUser1;
@@ -103,7 +103,7 @@ public class JsonDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Json;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    SchemaValidationRules.of(Compatibility.allowAny()),
+                    Compatibility.of(BackwardAndForward.allowAny()),
                     false, ImmutableMap.of(SerializerFactory.ENCODE, Boolean.toString(encodeHeaders))));
 
             JSONSchema<DerivedUser2> schema = JSONSchema.of(DerivedUser2.class);
@@ -173,7 +173,7 @@ public class JsonDemo {
 
             SerializationFormat serializationFormat = SerializationFormat.Json;
             client.addGroup(groupId, new GroupProperties(serializationFormat,
-                    SchemaValidationRules.of(Compatibility.allowAny()),
+                    Compatibility.of(BackwardAndForward.allowAny()),
                     true));
 
             JSONSchema<User> schema1 = JSONSchema.ofBaseType(DerivedUser1.class, User.class);
