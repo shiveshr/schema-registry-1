@@ -98,7 +98,7 @@ public class SchemaRegistryResourceTest extends JerseyTest {
         // region group properties
         // endregion 
 
-        // region update validation rules
+        // region update compatibility
         // endregion
     }
 

@@ -176,7 +176,7 @@ public class SQLApp {
         }
 
         String tableGroupId = getTableGroupId(tableName);
-        Compatibility validationRules = Compatibility.denyAll();
+        Compatibility compatibility = Compatibility.denyAll();
         SerializationFormat serializationFormat = SerializationFormat.custom("table");
 
         ImmutableMap.Builder<String, String> map = ImmutableMap.builder();
@@ -185,7 +185,7 @@ public class SQLApp {
         
         SchemaInfo tableSchemaInfo = new SchemaInfo("table", serializationFormat, ByteBuffer.wrap(tableSchema.toBytes()), map.build());
         
-        client.addGroup(tableGroupId, new GroupProperties(serializationFormat, validationRules, false));
+        client.addGroup(tableGroupId, new GroupProperties(serializationFormat, compatibility, false));
         client.addSchema(tableGroupId, tableSchemaInfo);
     }
 

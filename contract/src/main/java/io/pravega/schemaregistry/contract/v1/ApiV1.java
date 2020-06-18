@@ -276,7 +276,7 @@ public class ApiV1 {
         @Consumes({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "update compatibility of an existing Group", response = Void.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 200, message = "Updated schema validation policy", response = Void.class),
+                @io.swagger.annotations.ApiResponse(code = 200, message = "Updated schema compatibility policy", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 404, message = "Group with given name not found", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 409, message = "Write conflict", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while updating Group's compatibility", response = Void.class)})
@@ -544,7 +544,7 @@ public class ApiV1 {
         @Consumes({"application/json"})
         @io.swagger.annotations.ApiOperation(value = "", notes = "update compatibility of an existing Group", response = Void.class, tags = {"Group", })
         @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 200, message = "Updated schema validation policy", response = Void.class),
+                @io.swagger.annotations.ApiResponse(code = 200, message = "Updated schema compatibility policy", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 404, message = "Group with given name not found", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 409, message = "Write conflict", response = Void.class),
                 @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while updating Group's compatibility", response = Void.class)})
