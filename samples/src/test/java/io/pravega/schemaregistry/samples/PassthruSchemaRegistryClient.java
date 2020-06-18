@@ -18,7 +18,7 @@ import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 import io.pravega.schemaregistry.service.SchemaRegistryService;
@@ -67,8 +67,8 @@ public class PassthruSchemaRegistryClient implements SchemaRegistryClient {
     }
 
     @Override
-    public boolean updateSchemaValidationRules(String group, SchemaValidationRules validationRules, SchemaValidationRules previousRules) {
-        return service.updateSchemaValidationRules(group, validationRules, previousRules)
+    public boolean updateCompatibility(String group, Compatibility compatibility, Compatibility previousRules) {
+        return service.updateCompatibility(group, compatibility, previousRules)
                       .handle((r, e) -> e != null).join();
     }
     
@@ -84,7 +84,7 @@ public class PassthruSchemaRegistryClient implements SchemaRegistryClient {
 
     @Override
     public void deleteSchemaVersion(String groupId, VersionInfo versionInfo) {
-        service.deleteSchema(groupId, versionInfo.getOrdinal()).join();
+        service.deleteSchema(groupId, versionInfo.getId()).join();
     }
 
     @Override
@@ -94,7 +94,7 @@ public class PassthruSchemaRegistryClient implements SchemaRegistryClient {
 
     @Override
     public SchemaInfo getSchemaForVersion(String group, VersionInfo versionInfo) {
-        return service.getSchema(group, versionInfo.getOrdinal()).join();
+        return service.getSchema(group, versionInfo.getId()).join();
     }
 
     @Override
@@ -116,7 +116,7 @@ public class PassthruSchemaRegistryClient implements SchemaRegistryClient {
     public SchemaWithVersion getLatestSchemaVersion(String group, @Nullable String schemaType) {
         List<SchemaWithVersion> latestSchemas = service.getSchemas(group, schemaType).join();
         if (schemaType == null) {
-            return latestSchemas.stream().max(Comparator.comparingInt(x -> x.getVersionInfo().getOrdinal())).orElse(null);
+            return latestSchemas.stream().max(Comparator.comparingInt(x -> x.getVersionInfo().getId())).orElse(null);
         } else {
             return latestSchemas.get(0);
         }

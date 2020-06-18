@@ -52,13 +52,13 @@ public class InMemoryGroups implements Groups<Integer> {
         if (groups.containsKey(group)) {
             return CompletableFuture.completedFuture(false);
         }
-        Group<Integer> grp = groups.computeIfAbsent(group, 
+        Group<Integer> grp = groups.computeIfAbsent(group,
                 x -> {
-                    
+
                     return new Group<>(group, kvFactory.get(), executor);
                 });
-        return grp.create(groupProperties.getSerializationFormat(), groupProperties.getProperties(), groupProperties.isAllowMultipleTypes(), 
-                groupProperties.getSchemaValidationRules()).thenApply(v -> true);
+        return grp.create(groupProperties.getSerializationFormat(), groupProperties.getProperties(), groupProperties.isAllowMultipleTypes(),
+                groupProperties.getCompatibility()).thenApply(v -> true);
     }
 
     @Synchronized

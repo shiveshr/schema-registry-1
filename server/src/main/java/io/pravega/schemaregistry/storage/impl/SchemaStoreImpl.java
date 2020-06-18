@@ -16,7 +16,7 @@ import io.pravega.schemaregistry.contract.data.EncodingInfo;
 import io.pravega.schemaregistry.contract.data.GroupHistoryRecord;
 import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
+import io.pravega.schemaregistry.contract.data.Compatibility;
 import io.pravega.schemaregistry.contract.data.SchemaWithVersion;
 import io.pravega.schemaregistry.contract.data.VersionInfo;
 import io.pravega.schemaregistry.storage.ContinuationToken;
@@ -67,7 +67,7 @@ public class SchemaStoreImpl<T> implements SchemaStore {
     }
 
     @Override
-    public CompletableFuture<Void> updateValidationRules(String group, Etag etag, SchemaValidationRules policy) {
+    public CompletableFuture<Void> updateCompatibility(String group, Etag etag, Compatibility policy) {
         return getGroup(group)
                 .thenCompose(grp -> grp.updateValidationPolicy(policy, etag));
     }
@@ -85,7 +85,7 @@ public class SchemaStoreImpl<T> implements SchemaStore {
 
     @Override
     public CompletableFuture<List<SchemaWithVersion>> listSchemas(String group, VersionInfo from) {
-        return getGroup(group).thenCompose(grp -> grp.getSchemas(from.getOrdinal()));
+        return getGroup(group).thenCompose(grp -> grp.getSchemas(from.getId()));
     }
 
     @Override
@@ -95,12 +95,12 @@ public class SchemaStoreImpl<T> implements SchemaStore {
 
     @Override
     public CompletableFuture<List<SchemaWithVersion>> listSchemasByType(String group, String type, VersionInfo from) {
-        return getGroup(group).thenCompose(grp -> grp.getSchemas(type, from.getOrdinal()));
+        return getGroup(group).thenCompose(grp -> grp.getSchemas(type, from.getId()));
     }
 
     @Override
-    public CompletableFuture<Void> deleteSchema(String group, int versionOrdinal, Etag etag) {
-        return getGroup(group).thenCompose(grp -> grp.deleteSchema(versionOrdinal, etag));
+    public CompletableFuture<Void> deleteSchema(String group, int id, Etag etag) {
+        return getGroup(group).thenCompose(grp -> grp.deleteSchema(id, etag));
     }
 
     @Override
@@ -109,8 +109,8 @@ public class SchemaStoreImpl<T> implements SchemaStore {
     }
 
     @Override
-    public CompletableFuture<SchemaInfo> getSchema(String group, int versionOrdinal) {
-        return getGroup(group).thenCompose(grp -> grp.getSchema(versionOrdinal));
+    public CompletableFuture<SchemaInfo> getSchema(String group, int schemaId) {
+        return getGroup(group).thenCompose(grp -> grp.getSchema(schemaId));
     }
 
     @Override

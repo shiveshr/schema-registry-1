@@ -1,10 +1,10 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.schemaregistry.storage.impl.groups;
@@ -74,7 +74,7 @@ public class PravegaKVGroups implements Groups<Version> {
                         boolean toReturn = entry.getRecord().getId().equals(id);
                         return index.create()
                                     .thenCompose(v -> grp.create(groupProperties.getSerializationFormat(), groupProperties.getProperties(),
-                                            groupProperties.isAllowMultipleTypes(), groupProperties.getSchemaValidationRules()))
+                                            groupProperties.isAllowMultipleTypes(), groupProperties.getCompatibility()))
                                     .thenCompose(v -> {
                                         byte[] newValue = new GroupsValue(entry.getRecord().getId(), GroupsValue.State.Active).toBytes();
                                         return tableStore.updateEntry(GROUPS, group.getBytes(Charsets.UTF_8), newValue, entry.getVersion());
@@ -121,7 +121,7 @@ public class PravegaKVGroups implements Groups<Version> {
     }
 
     private GroupObj getGroupObject(String groupName, GroupsValue value) {
-        PravegaKVGroupTable index = new PravegaKVGroupTable(groupName, value.getId(), tableStore);
+        PravegaKVGroupTable index = new PravegaKVGroupTable(value.getId(), tableStore);
         Group<Version> group = new Group<>(groupName, index, executor);
         return new GroupObj(group, index);
     }

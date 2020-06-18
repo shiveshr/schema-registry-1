@@ -93,14 +93,14 @@ public interface SchemaRegistryClient {
      * existing {@link GroupProperties#compatibility} match previous rules. 
      * 
      * @param groupId Id for the group. 
-     * @param validationRules New Compatibility for the group.
+     * @param compatibility New Compatibility for the group.
      * @param previousRules Previous compatibility.
      * @return true if the update was accepted by the service, false if it was rejected because of precondition failure.
      * Precondition failure can occur if previous rules were specified and they do not match the rules set on the group. 
      * @throws ResourceNotFoundException if group is not found.
      * @throws UnauthorizedException if the user is unauthorized.
      */
-    boolean updateCompatibility(String groupId, Compatibility validationRules, @Nullable Compatibility previousRules)
+    boolean updateCompatibility(String groupId, Compatibility compatibility, @Nullable Compatibility previousRules)
         throws ResourceNotFoundException, UnauthorizedException;
 
     /**

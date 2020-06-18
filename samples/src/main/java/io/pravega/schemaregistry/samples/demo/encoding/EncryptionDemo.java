@@ -1,10 +1,10 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
+ * 
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.schemaregistry.samples.demo.encoding;
@@ -31,7 +31,6 @@ import io.pravega.schemaregistry.client.SchemaRegistryClientConfig;
 import io.pravega.schemaregistry.client.SchemaRegistryClientFactory;
 import io.pravega.schemaregistry.codec.Codec;
 import io.pravega.schemaregistry.contract.data.Compatibility;
-import io.pravega.schemaregistry.contract.data.SchemaValidationRules;
 import io.pravega.schemaregistry.contract.data.SerializationFormat;
 import io.pravega.schemaregistry.samples.generated.Test1;
 import io.pravega.schemaregistry.schemas.AvroSchema;
@@ -109,7 +108,7 @@ public class EncryptionDemo {
         SerializerConfig serializerConfig = SerializerConfig.builder()
                                                             .groupId(groupId)
                                                             .createGroup(SerializationFormat.Avro,
-                                                                    SchemaValidationRules.of(Compatibility.backward()), true)
+                                                                    Compatibility.backward(), true)
                                                             .registerSchema(true)
                                                             .registerCodec(true)
                                                             .codec(myCodec)
