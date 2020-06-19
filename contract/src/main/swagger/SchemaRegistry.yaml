@@ -628,6 +628,11 @@ paths:
         500:
           description: Internal server error while registering codectype to a Group          
   /schemas/addedTo:
+    parameters:
+      - in: query
+        name: namespace
+        type: string
+        description: Namespace in which to lookup schemas used in groups. If no namespace is specified, default namespace is used.
     post:
       tags:
       - "Schemas"
