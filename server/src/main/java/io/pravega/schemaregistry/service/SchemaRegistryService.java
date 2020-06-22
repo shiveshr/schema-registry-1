@@ -579,7 +579,7 @@ public class SchemaRegistryService {
             case Any:
                 return newRules.getType().equals(Compatibility.Type.AllowAny) || newRules.getType().equals(Compatibility.Type.DenyAll);
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown serialization format");
         }
     }
 
@@ -597,7 +597,7 @@ public class SchemaRegistryService {
             case Advanced:
                 return getSchemasForBackwardAndForwardPolicy(group, schema, groupProperties);
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown Compatibility policy");
         }
     }
 
@@ -669,7 +669,7 @@ public class SchemaRegistryService {
                 forwardPolicy = BackwardAndForward.FORWARD_TRANSITIVE;
                 break;
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown compatibility policy");
         }
         return BackwardAndForward.builder().backwardPolicy(backwardPolicy).forwardPolicy(forwardPolicy).build();
     }
@@ -729,7 +729,7 @@ public class SchemaRegistryService {
                 } 
                 return isValid;
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown compatibility policy");
         }
     }
 
@@ -814,7 +814,7 @@ public class SchemaRegistryService {
                 }
                 return canRead;
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unknown compatibility policy");
         }
     }
 

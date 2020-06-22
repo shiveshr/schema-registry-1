@@ -125,7 +125,7 @@ public class PassthruSchemaRegistryClient implements SchemaRegistryClient {
     @Override
     public List<SchemaWithVersion> getSchemaVersions(String groupId, @Nullable String schemaType) {
         return service.getGroupHistory(groupId, schemaType)
-                .thenApply(history -> history.stream().map(x -> new SchemaWithVersion(x.getSchema(), x.getVersion())).collect(Collectors.toList())).join();
+                .thenApply(history -> history.stream().map(x -> new SchemaWithVersion(x.getSchemaInfo(), x.getVersionInfo())).collect(Collectors.toList())).join();
     }
 
     @Override

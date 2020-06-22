@@ -36,7 +36,7 @@ class AbstractResource {
         try {
             return future.get();
         } catch (IllegalArgumentException e) {
-            log.warn("Bad request {}", request);
+            log.warn("Bad request {} error:{}", request, e.getMessage());
             return CompletableFuture.completedFuture(Response.status(Response.Status.BAD_REQUEST).build());
         } catch (Exception e) {
             log.error("request failed with exception {}", e);

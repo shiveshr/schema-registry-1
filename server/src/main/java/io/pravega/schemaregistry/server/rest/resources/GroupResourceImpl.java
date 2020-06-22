@@ -220,8 +220,8 @@ public class GroupResourceImpl extends AbstractResource implements ApiV1.GroupsA
                                                                .thenApply(history -> {
                                                                    SchemaVersionsList list = new SchemaVersionsList()
                                                                            .schemas(history.stream().map(x -> new SchemaWithVersion()
-                                                                                   .schemaInfo(ModelHelper.encode(x.getSchema()))
-                                                                                   .version(ModelHelper.encode(x.getVersion())))
+                                                                                   .schemaInfo(ModelHelper.encode(x.getSchemaInfo()))
+                                                                                   .versionInfo(ModelHelper.encode(x.getVersionInfo())))
                                                                                            .collect(Collectors.toList()));
                                                                    log.info("getSchemaVersions: {} schemas found for group {}", list.getSchemas().size(), groupName);
                                                                    return Response.status(Status.OK).entity(list).build();
