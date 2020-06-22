@@ -246,7 +246,7 @@ public class SchemaRegistryService {
                                                                               .thenApply(schemas -> checkCompatibility(schema, prop, schemas))
                                                                               .thenCompose(valid -> {
                                                                                   if (!valid) {
-                                                                                      throw new IncompatibleSchemaException(String.format("%s is incomatible", schema.getType()));
+                                                                                      throw new IncompatibleSchemaException(String.format("%s is incompatible", schema.getType()));
                                                                                   }
                                                                                   return store.addSchema(group, schema, prop, etag);
                                                                               });
