@@ -12,20 +12,42 @@ package io.pravega.schemaregistry.storage.client;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableManager;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.ByteBufferSerializer;
+import io.pravega.client.tables.BadKeyVersionException;
+import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
+import io.pravega.client.tables.IteratorState;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.NoSuchKeyException;
+import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.Version;
 import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.schemaregistry.ResultPage;
@@ -35,6 +57,8 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -46,6 +70,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -61,15 +86,7 @@ public class TableStore extends AbstractService {
     private final static int RETRY_MULTIPLIER = 2;
     private final static long RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
     private static final int NUM_OF_RETRIES = 15; // approximately 1 minute worth of retries
-    /**
-     * Segment helper to make KVT wire command calls to segment store. 
-     */
-    private final WireCommandClient wireCommandClient;
-    /**
-     * Host Store implementation required by {@link WireCommandClient}. This wraps a controller client to get the URI for
-     * a segment store instance. 
-     */
-    private final HostStore hostStore;
+    public static final KeyValueTableConfiguration CONFIG = KeyValueTableConfiguration.builder().partitionCount(1).build();
     private final int numOfRetries;
     private final ScheduledExecutorService executor;
     /**
@@ -77,36 +94,40 @@ public class TableStore extends AbstractService {
      */
     private final Cache<TableCacheKey, VersionedRecord<?>> cache;
     /**
-     * Function to get delegation token to talk to segment store.
+     * Cache where callers can cache values against a table name and a key. 
      */
-    private final Function<String, String> tokenSupplier;
-    /**
-     * cache to store the delegation token by segment store instance so that we continue to reuse the token until it 
-     * expires, which is when it should be invalidated from the cache explicitly. 
-     */
-    private final Cache<String, String> tokenCache;
-
+    private final LoadingCache<String, KeyValueTable<ByteBuffer, ByteBuffer>> tableCache;
+    private final KeyValueTableManager kvtManager;
+    private final ControllerImpl controller;
+    private final KeyValueTableFactoryImpl tableSegmentFactory;
     public TableStore(ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(new WireCommandClient(new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig)), 
-                        new HostStore(clientConfig, executor)), executor);
-    }
-    
-    TableStore(WireCommandClient wireCommandClient, ScheduledExecutorService executor) {
-        this.wireCommandClient = wireCommandClient;
-        this.hostStore = wireCommandClient.getHostStore();
         this.executor = executor;
-        this.tokenSupplier = x -> {
-            String[] splits = x.split("/");
-            return hostStore.getController().getOrRefreshDelegationTokenFor(splits[0], splits[1]).join();
-        };
         numOfRetries = NUM_OF_RETRIES;
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        ConnectionPool connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        this.tableSegmentFactory = new KeyValueTableFactoryImpl(SCHEMA_REGISTRY_SCOPE, controller, connectionPool);
         this.cache = CacheBuilder.newBuilder()
                                  .maximumSize(10000)
                                  .build();
+        // loading cache which creates a new kvt client if it doesnt exist.. other wise it returns the kvt client 
+        this.tableCache = CacheBuilder.newBuilder()
+                                      .maximumSize(1000)
+                                      .refreshAfterWrite(10, TimeUnit.MINUTES)
+                                      .expireAfterWrite(10, TimeUnit.MINUTES)
+                                      .build(
+                                              new CacheLoader<String, KeyValueTable<ByteBuffer, ByteBuffer>>() {
+                                                  @Override
+                                                  @ParametersAreNonnullByDefault
+                                                  public KeyValueTable<ByteBuffer, ByteBuffer> load(String name) {
+                                                      ByteBufferSerializer serializer = new ByteBufferSerializer();
+                                                      KeyValueTableClientConfiguration config = KeyValueTableClientConfiguration
+                                                              .builder().retryAttempts(numOfRetries).build();
+                                                      return tableSegmentFactory.forKeyValueTable(name, serializer, serializer, config);
+                                                  }
+                                              });
 
-        tokenCache = CacheBuilder.newBuilder()
-                    .maximumSize(100)
-                    .build(); 
+        kvtManager = KeyValueTableManager.create(clientConfig);
     }
 
     @Override
@@ -127,69 +148,45 @@ public class TableStore extends AbstractService {
     }
 
     private CompletableFuture<Void> createScope() {
-        return withRetries(() -> Futures.toVoid(hostStore.getController().createScope(SCHEMA_REGISTRY_SCOPE)),
-                () -> "Failed to create scope. Retrying...", "");
+        return withRetries(() -> Futures.toVoid(controller.createScope(SCHEMA_REGISTRY_SCOPE)));
     }
     
     public CompletableFuture<Void> createTable(String tableName) {
         log.debug("create table called for table: {}", tableName);
 
-        return Futures.toVoid(withRetries(() -> wireCommandClient.createTableSegment(
-                tableName, getToken(tableName)),
-                () -> String.format("create table: %s", tableName), tableName))
-                      .whenComplete((r, e) -> {
-                          if (e != null) {
-                              log.warn("create table {} threw exception", tableName, e);
-                          } else {
-                              log.debug("table {} created successfully", tableName);
-                          }
-                      });
+        return CompletableFuture.runAsync(() -> kvtManager.createKeyValueTable(SCHEMA_REGISTRY_SCOPE, tableName, CONFIG), executor);
     }
 
-    public CompletableFuture<Void> deleteTable(String tableName, boolean mustBeEmpty) {
+    public CompletableFuture<Void> deleteTable(String tableName) {
         log.debug("delete table called for table: {}", tableName);
-        return withRetries(() -> wireCommandClient.deleteTableSegment(
-                tableName, mustBeEmpty, getToken(tableName)),
-                () -> String.format("delete table: %s", tableName), tableName)
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreExceptions.DataContainerNotFoundException) {
-                        return null;
-                    } else {
-                        throw new CompletionException(e);
-                    }
-                })
-                .thenAccept(v -> log.debug("table {} deleted successfully", tableName));
+        return CompletableFuture.runAsync(() -> kvtManager.deleteKeyValueTable(SCHEMA_REGISTRY_SCOPE, tableName), executor);
     }
 
     public CompletableFuture<Void> addNewEntryIfAbsent(String tableName, byte[] key, @NonNull byte[] value) {
-        return Futures.toVoid(updateEntries(tableName, Collections.singletonMap(key, new VersionedRecord<>(value, null)))
-                .thenApply(list -> list.get(0)))
-                      .exceptionally(e -> {
-                          if (Exceptions.unwrap(e) instanceof StoreExceptions.WriteConflictException) {
-                              return null;
-                          } else {
-                              throw new CompletionException(e);
-                          }
-                      });
+        // get table from tablecache
+        return Futures.toVoid(getTable(tableName).putIfAbsent("", ByteBuffer.wrap(key), ByteBuffer.wrap(value)));
+    }
+
+    @SneakyThrows(ExecutionException.class)
+    private KeyValueTable<ByteBuffer, ByteBuffer> getTable(String tableName) {
+        return tableCache.get(tableName);
     }
 
     public CompletableFuture<Version> updateEntry(String tableName, byte[] key, byte[] value, Version ver) {
+        getTable(tableName).replace("", ByteBuffer.wrap(key), ByteBuffer.wrap(value), ver);
+
         return updateEntries(tableName, Collections.singletonMap(key, new VersionedRecord<>(value, ver))).thenApply(list -> list.get(0));
     }
-
+    
     public CompletableFuture<List<Version>> updateEntries(String tableName, Map<byte[], VersionedRecord<byte[]>> batch) {
         Preconditions.checkNotNull(batch);
-        List<TableSegmentEntry> entries = batch.entrySet().stream().map(x -> {
+        List<TableEntry<ByteBuffer, ByteBuffer>> entries = batch.entrySet().stream().map(x -> {
             return x.getValue().getVersion() == null ?
-                    TableSegmentEntry.notExists(x.getKey(), x.getValue().getRecord()) :
-                    TableSegmentEntry.versioned(x.getKey(), x.getValue().getRecord(), x.getValue().getVersion().toLong());
+                    TableEntry.notExists(ByteBuffer.wrap(x.getKey()), ByteBuffer.wrap(x.getValue().getRecord())) :
+                    TableEntry.versioned(ByteBuffer.wrap(x.getKey()), x.getValue().getVersion(), ByteBuffer.wrap(x.getValue().getRecord()));
         }).collect(Collectors.toList());
-        return wireCommandClient.updateTableEntries(tableName, entries, getToken(tableName))
-                                .thenApply(list -> list.stream().map(x -> new Version(x.getSegmentVersion()))
-                                                   .collect(Collectors.toList()))
-                                .whenComplete((r, e) -> {
-                                releaseEntries(entries);
-                            });
+        
+        return getTable(tableName).replaceAll("", entries);
     }
 
     public <T> CompletableFuture<VersionedRecord<T>> getEntry(String tableName, byte[] key, Function<byte[], T> fromBytes) {
@@ -202,86 +199,53 @@ public class TableStore extends AbstractService {
 
     public CompletableFuture<List<VersionedRecord<byte[]>>> getEntries(String tableName, List<byte[]> tableKeys, boolean throwOnNotFound) {
         log.info("get entries called for : {} key : {}", tableName, tableKeys);
-        List<TableSegmentKey> keys = tableKeys.stream().map(TableSegmentKey::unversioned).collect(Collectors.toList());
-
-        CompletableFuture<List<VersionedRecord<byte[]>>> result = new CompletableFuture<>();
-        String message = "get entries for table: %s";
-        withRetries(() -> wireCommandClient.readTable(tableName, keys, getToken(tableName)),
-                () -> String.format(message, tableName), tableName)
-                .thenApply(entriesFromStore -> {
-                    try {
-                        return entriesFromStore.stream().map(y -> {
-                            TableSegmentKeyVersion version = y.getKey().getVersion();
-                            if (version.equals(TableSegmentKeyVersion.NOT_EXISTS)) {
-                                if (throwOnNotFound) {
-                                    throw StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, "key not found");
-                                } else {
-                                    return new VersionedRecord<>((byte[]) null, Version.NON_EXISTENT);
-                                }
-                            } else {
-                                return new VersionedRecord<>(getArray(y.getValue()), new Version(version.getSegmentVersion()));
-                            }
-                        }).collect(Collectors.toList());
-                    } finally {
-                        releaseEntries(entriesFromStore);
-                    }
-                })
-                .whenComplete((r, e) -> {
-                    if (e != null) {
-                        result.completeExceptionally(e);
+        
+        List<ByteBuffer> keys = tableKeys.stream().map(ByteBuffer::wrap).collect(Collectors.toList());
+        return getTable(tableName).getAll("", keys)
+                .thenApply(list -> list.stream().map(x -> {
+                    if (x.getKey().getVersion().equals(Version.NOT_EXISTS) && throwOnNotFound) {
+                            throw StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, "key not found");
                     } else {
-                        result.complete(r);
+                        return new VersionedRecord<>(getArray(x.getValue()), x.getKey().getVersion());
                     }
-                    releaseKeys(keys);
-                });
-        return result;
+                }).collect(Collectors.toList()));
     }
-
+    
     public CompletableFuture<Void> removeEntry(String tableName, byte[] key) {
         log.trace("remove entry called for : {} key : {}", tableName, key);
         List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(key));
-        return withRetries(() -> wireCommandClient.removeTableKeys(
-                tableName, keys, getToken(tableName)),
-                () -> String.format("remove entry: table: %s", tableName), tableName)
-                .thenAccept(v -> log.trace("entry for key {} removed from table {}", key, tableName))
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreExceptions.DataNotFoundException) {
-                        return null;
-                    } else {
-                        throw new CompletionException(e);
-                    }
-                }).whenComplete((r, e) -> {
-                    releaseKeys(keys);
-                });
+        return getTable(tableName).remove("", ByteBuffer.wrap(key));
     }
 
     public <K> CompletableFuture<List<K>> getAllKeys(String tableName, Function<byte[], K> fromBytesKey) {
         List<K> keys = new LinkedList<>();
-        ContinuationTokenAsyncIterator<ByteBuf, K> iterator = new ContinuationTokenAsyncIterator<>(
-                token -> getKeysPaginated(tableName, token, 1000, fromBytesKey)
-                        .thenApply(result -> {
-                            token.release();
-                            return new AbstractMap.SimpleEntry<>(result.getToken(), result.getList());
-                        }),
-                IteratorStateImpl.EMPTY.getToken());
+        AsyncIterator<IteratorItem<TableKey<ByteBuffer>>> iterator = getTable(tableName).keyIterator("", 1000, null);
 
-        return iterator.collectRemaining(keys::add)
-                       .thenApply(v -> keys);
+        return iterator.collectRemaining(x -> {
+            x.getItems().forEach(y -> {
+                byte[] dst = getArray(y.getKey());
+                keys.add(fromBytesKey.apply(dst));
+            });
+            return !x.getItems().isEmpty();
+        }).thenApply(v -> keys);
     }
 
     public <K, T> CompletableFuture<List<VersionedEntry<K, T>>> getAllEntries(String tableName,
                                                                               Function<byte[], K> fromBytesKey,
                                                                               Function<byte[], T> fromBytesValue) {
         List<VersionedEntry<K, T>> entries = new LinkedList<>();
-        ContinuationTokenAsyncIterator<ByteBuf, VersionedEntry<K, T>> iterator = new ContinuationTokenAsyncIterator<>(
-                token -> getEntriesPaginated(tableName, token, 1000, fromBytesKey, fromBytesValue)
-                        .thenApply(result -> {
-                            token.release();
-                            return new AbstractMap.SimpleEntry<>(result.getToken(), result.getList());
-                        }),
-                IteratorStateImpl.EMPTY.getToken());
-
-        return iterator.collectRemaining(entries::add).thenApply(v -> entries);
+        AsyncIterator<IteratorItem<TableEntry<ByteBuffer, ByteBuffer>>> iterator = getTable(tableName)
+                .entryIterator("", 1000, null);
+        
+        return iterator.collectRemaining(x -> {
+            x.getItems().forEach(y -> {
+                byte[] key = getArray(y.getKey().getKey());
+                byte[] value = getArray(y.getValue());
+                entries.add(new VersionedEntry<>(fromBytesKey.apply(key), 
+                        new VersionedRecord<>(fromBytesValue.apply(value), y.getKey().getVersion())));
+            });
+            return !x.getItems().isEmpty();
+        }).thenApply(v -> entries);
     }
 
     /**
@@ -307,111 +271,81 @@ public class TableStore extends AbstractService {
         cache.invalidate(new TableCacheKey<>(table, key));
     }
 
-    public <K> CompletableFuture<ResultPage<K, ByteBuf>> getKeysPaginated(String tableName, ByteBuf continuationToken, int limit,
+    public <K> CompletableFuture<ResultPage<K, ByteBuffer>> getKeysPaginated(String tableName, ByteBuffer continuationToken, int limit,
                                                                           Function<byte[], K> fromByteKey) {
         log.trace("get keys paginated called for : {}", tableName);
 
-        return withRetries(() ->
-                        wireCommandClient.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken),
-                                getToken(tableName)),
-                () -> String.format("get keys paginated for table: %s", tableName), tableName)
-                .thenApply(result -> {
-                    try {
-                        List<K> items = result.getItems().stream().map(x -> fromByteKey.apply(getArray(x.getKey())))
-                                              .collect(Collectors.toList());
-                        log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                        return new ResultPage<>(items, getNextToken(continuationToken, result));
-                    } finally {
-                        releaseKeys(result.getItems());
-                    }
-                });
+        return getTable(tableName).keyIterator("", limit, IteratorState.fromBytes(continuationToken)).getNext()
+                .thenApply(x -> new ResultPage<>(x.getItems().stream().map(y -> {
+                    byte[] key = getArray(y.getKey());
+                    return fromByteKey.apply(key);
+                }).collect(Collectors.toList()), x.getState().toBytes()));
     }
 
-    private <K, T> CompletableFuture<ResultPage<VersionedEntry<K, T>, ByteBuf>> getEntriesPaginated(
-            String tableName, ByteBuf continuationToken, int limit, Function<byte[], K> fromBytesKey,
+    private <K, T> CompletableFuture<ResultPage<VersionedEntry<K, T>, ByteBuffer>> getEntriesPaginated(
+            String tableName, ByteBuffer continuationToken, int limit, Function<byte[], K> fromBytesKey,
             Function<byte[], T> fromBytesValue) {
         log.trace("get entries paginated called for : {}", tableName);
-        return withRetries(() -> wireCommandClient.readTableEntries(tableName, limit,
-                IteratorStateImpl.fromBytes(continuationToken), getToken(tableName)),
-                () -> String.format("get entries paginated for table: %s", tableName), tableName)
-                .thenApply(result -> {
-                    try {
-                        List<VersionedEntry<K, T>> items = result.getItems().stream().map(x -> {
-                            T deserialized = fromBytesValue.apply(getArray(x.getValue()));
-                            VersionedRecord<T> value = new VersionedRecord<>(deserialized, new Version(x.getKey().getVersion().getSegmentVersion()));
-                            return new VersionedEntry<>(fromBytesKey.apply(getArray(x.getKey().getKey())), value);
-                        }).collect(Collectors.toList());
-
-                        log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                        return new ResultPage<>(items, getNextToken(continuationToken, result));
-                    } finally {
-                        releaseEntries(result.getItems());
-                    }
-                });
+        return getTable(tableName).entryIterator("", limit, IteratorState.fromBytes(continuationToken)).getNext()
+                                  .thenApply(x -> new ResultPage<>(x.getItems().stream().map(y -> {
+                                      byte[] key = getArray(y.getKey().getKey());
+                                      byte[] value = getArray(y.getValue());
+                                      return new VersionedEntry<>(fromBytesKey.apply(key),
+                                              new VersionedRecord<>(fromBytesValue.apply(value), y.getKey().getVersion()));
+                                  }).collect(Collectors.toList()), x.getState().toBytes()));
     }
 
-    private ByteBuf getNextToken(ByteBuf continuationToken, IteratorItem<?> result) {
-        return result.getItems().isEmpty() && result.getState().isEmpty() ?
-                continuationToken : Unpooled.wrappedBuffer(result.getState().toBytes());
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier) {
+        return Retry.withExpBackoff(RETRY_INIT_DELAY, RETRY_MULTIPLIER, numOfRetries, RETRY_MAX_DELAY)
+                    .retryWhen(e -> true)
+                    .runAsync(futureSupplier, executor);
     }
 
     private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, Supplier<String> errorMessageSupplier,
-                                                                   String tableName) {
+                                                                   String tableName, boolean throwOriginalOnCfe) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
             Throwable cause = Exceptions.unwrap(t);
-            if (cause instanceof StoreExceptions) {
-                if (cause instanceof StoreExceptions.StoreConnectionException) {
-                    hostStore.invalidateCache(tableName);
-                } else if (cause instanceof StoreExceptions.AuthenticationException) {
-                    tokenCache.invalidate(tableName);
+            Throwable toThrow;
+            if (cause instanceof ConditionalTableUpdateException || cause instanceof BadKeyVersionException) {
+                toThrow = StoreExceptions.create(StoreExceptions.Type.WRITE_CONFLICT, errorMessage);
+            } else if (cause instanceof NoSuchKeyException) {
+                toThrow = StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, errorMessage);
+            } else if (cause instanceof NoSuchKeyException) {
+                toThrow = StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, errorMessage);
+                    case SegmentDoesNotExist:
+                        toThrow = StoreExceptions.create(StoreExceptions.Type.DATA_CONTAINER_NOT_FOUND, wcfe, errorMessage);
+                        break;
+                    case TableKeyDoesNotExist:
+                        toThrow = StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, wcfe, errorMessage);
+                        break;
+                    case TableKeyBadVersion:
+                        toThrow = StoreExceptions.create(StoreExceptions.Type.WRITE_CONFLICT, wcfe, errorMessage);
+                        break;
+                    default:
+                        toThrow = StoreExceptions.create(StoreExceptions.Type.UNKNOWN, wcfe, errorMessage);
                 }
+            } else if (cause instanceof ControllerFailureException) {
+                log.warn("Host Store exception {}", cause.getMessage());
+                toThrow = StoreExceptions.create(StoreExceptions.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
                 log.warn("exception of unknown type thrown {} ", errorMessage, cause);
-                cause = StoreExceptions.create(StoreExceptions.Type.UNKNOWN, cause, errorMessage);
+                toThrow = StoreExceptions.create(StoreExceptions.Type.UNKNOWN, cause, errorMessage);
             }
 
-            throw new CompletionException(cause);
+            throw new CompletionException(toThrow);
         });
     }
 
-    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage,
-                                                 String tableName) {
-        return Retry.withExpBackoff(RETRY_INIT_DELAY, RETRY_MULTIPLIER, numOfRetries, RETRY_MAX_DELAY)
-                    .retryWhen(e -> Exceptions.unwrap(e) instanceof StoreExceptions.StoreConnectionException)
-                    .runAsync(exceptionalCallback(futureSupplier, errorMessage, tableName), executor);
-    }
-    
-    @SneakyThrows(ExecutionException.class)
-    private String getToken(String tableName) {
-        return tokenCache.get(tableName, () ->  {
-            return tokenSupplier.apply(tableName);
-        });
-    }
-    
     @Data
     private static class TableCacheKey<K> {
         private final String table;
         private final K key;
     }
 
-    private byte[] getArray(ByteBuf buf) {
-        final byte[] bytes = new byte[buf.readableBytes()];
-        final int readerIndex = buf.readerIndex();
-        buf.getBytes(readerIndex, bytes);
+    private byte[] getArray(ByteBuffer buf) {
+        final byte[] bytes = new byte[buf.remaining()];
+        buf.get(bytes);
         return bytes;
-    }
-
-    private void releaseKeys(Collection<TableSegmentKey> keys) {
-        for (TableSegmentKey k : keys) {
-            ReferenceCountUtil.safeRelease(k.getKey());
-        }
-    }
-
-    private void releaseEntries(Collection<TableSegmentEntry> entries) {
-        for (TableSegmentEntry e : entries) {
-            ReferenceCountUtil.safeRelease(e.getKey().getKey());
-            ReferenceCountUtil.safeRelease(e.getValue());
-        }
     }
 }

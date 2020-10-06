@@ -9,14 +9,13 @@
  */
 package io.pravega.schemaregistry.storage.impl.group;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.schemaregistry.storage.Etag;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import io.pravega.schemaregistry.storage.client.TableStore;
-import io.pravega.schemaregistry.storage.client.Version;
 import io.pravega.schemaregistry.storage.client.VersionedRecord;
 import io.pravega.schemaregistry.storage.impl.group.records.TableKeySerializer;
 
@@ -43,8 +42,6 @@ import static io.pravega.schemaregistry.storage.impl.group.records.TableRecords.
  * Pravega tables based index implementation.
  */
 public class PravegaKVGroupTable implements GroupTable<Version> {
-    @VisibleForTesting
-    static final String TABLE_NAME_FORMAT = TableStore.SCHEMA_REGISTRY_SCOPE + "/%s.#.metadata/0";
     private static final TableKeySerializer KEY_SERIALIZER = new TableKeySerializer();
 
     // For immutable keys check in the local cache. If its not in the cache, fetch it from the store and load it 
@@ -65,7 +62,7 @@ public class PravegaKVGroupTable implements GroupTable<Version> {
     }
 
     private static String getTableName(String id) {
-        return String.format(TABLE_NAME_FORMAT, id);
+        return id;
     }
 
     public CompletableFuture<Void> create() {
@@ -75,7 +72,7 @@ public class PravegaKVGroupTable implements GroupTable<Version> {
 
     public CompletableFuture<Void> delete() {
         // delete the table
-        return tablesStore.deleteTable(tableName, false);
+        return tablesStore.deleteTable(tableName);
     }
 
     @Override
@@ -180,7 +177,7 @@ public class PravegaKVGroupTable implements GroupTable<Version> {
                                   TableKey key = nonCachedKeys.get(i);
                                   int index = nonCachedKeysIndex.get(key);
                                   VersionedRecord<byte[]> versionedRecord = values.get(i);
-                                  if (!versionedRecord.getVersion().equals(Version.NON_EXISTENT)) {
+                                  if (!versionedRecord.getVersion().equals(Version.NOT_EXISTS)) {
                                       T value = fromBytes(key.getClass(), versionedRecord.getRecord(), tClass);
                                       Version version = versionedRecord.getVersion();
                                       if (IMMUTABLE_RECORDS.contains(key.getClass())) {

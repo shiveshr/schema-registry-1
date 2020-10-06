@@ -10,17 +10,17 @@
 package io.pravega.schemaregistry.storage.impl.schemas;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.schemaregistry.common.ChunkUtil;
 import io.pravega.schemaregistry.common.HashUtil;
 import io.pravega.schemaregistry.contract.data.SchemaInfo;
 import io.pravega.schemaregistry.service.Config;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import io.pravega.schemaregistry.storage.client.TableStore;
-import io.pravega.schemaregistry.storage.client.Version;
 import io.pravega.schemaregistry.storage.client.VersionedRecord;
-import io.pravega.schemaregistry.common.ChunkUtil;
 import io.pravega.schemaregistry.storage.impl.group.records.NamespaceAndGroup;
 import lombok.val;
 
@@ -38,16 +38,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaFingerprintKey;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaGroupsKey;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaGroupsList;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaRecord;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaIdKey;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaIdList;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaIdChunkKey;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.SchemaChunkRecord;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.KeySerializer;
-import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.fromBytes;
+import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.*;
 
 public class PravegaKeyValueSchemas implements Schemas<Version> {
     private static final String SCHEMAS = TableStore.SCHEMA_REGISTRY_SCOPE + "/schemas/0";

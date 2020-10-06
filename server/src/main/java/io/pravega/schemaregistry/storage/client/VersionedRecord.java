@@ -9,6 +9,7 @@
  */
 package io.pravega.schemaregistry.storage.client;
 
+import io.pravega.client.tables.Version;
 import lombok.Data;
 
 @Data

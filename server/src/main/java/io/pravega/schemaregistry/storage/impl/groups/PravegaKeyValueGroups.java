@@ -9,9 +9,7 @@
  */
 package io.pravega.schemaregistry.storage.impl.groups;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.schemaregistry.ResultPage;
@@ -20,12 +18,12 @@ import io.pravega.schemaregistry.contract.data.GroupProperties;
 import io.pravega.schemaregistry.storage.ContinuationToken;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import io.pravega.schemaregistry.storage.client.TableStore;
-import io.pravega.schemaregistry.storage.client.Version;
 import io.pravega.schemaregistry.storage.impl.group.Group;
 import io.pravega.schemaregistry.storage.impl.group.PravegaKVGroupTable;
 import io.pravega.schemaregistry.storage.impl.group.records.NamespaceAndGroup;
 import lombok.Data;
 
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Base64;
 import java.util.List;
@@ -40,6 +38,7 @@ import java.util.stream.Collectors;
 
 public class PravegaKeyValueGroups implements Groups<Version> {
     public static final String GROUPS = TableStore.SCHEMA_REGISTRY_SCOPE + "/groups/0";
+    public static final ByteBuffer EMPTY_TOKEN = ByteBuffer.wrap(new byte[0]);
 
     private final TableStore tableStore;
     private final ScheduledExecutorService executor;
@@ -106,15 +105,15 @@ public class PravegaKeyValueGroups implements Groups<Version> {
     @Override
     public CompletableFuture<ResultPage<String, ContinuationToken>> listGroups(String nameSpace, ContinuationToken token, int limit) {
         String namespace = nameSpace == null ? "" : nameSpace;
-        ByteBuf continuationToken;
+        ByteBuffer continuationToken;
         if (token == null || token.equals(ContinuationToken.EMPTY)) {
-            continuationToken = IteratorStateImpl.EMPTY.getToken();
+            continuationToken = EMPTY_TOKEN;
         } else {
             byte[] bytes = Base64.getDecoder().decode(token.toString());
-            continuationToken = Unpooled.wrappedBuffer(bytes);
+            continuationToken = ByteBuffer.wrap(bytes);
         }
-        BiFunction<ByteBuf, Integer, CompletableFuture<Map.Entry<ByteBuf, List<NamespaceAndGroup>>>> function = 
-                (ByteBuf t, Integer l) -> withCreateGroupsTableIfAbsent(
+        BiFunction<ByteBuffer, Integer, CompletableFuture<Map.Entry<ByteBuffer, List<NamespaceAndGroup>>>> function = 
+                (ByteBuffer t, Integer l) -> withCreateGroupsTableIfAbsent(
                         () -> tableStore.getKeysPaginated(GROUPS, t, l, NamespaceAndGroup::fromBytes)
                                         .thenApply(page -> new AbstractMap.SimpleEntry<>(page.getToken(), page.getList())));
         Predicate<NamespaceAndGroup> predicate = x -> x.getNamespace().equals(namespace);

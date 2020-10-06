@@ -10,8 +10,8 @@
 package io.pravega.schemaregistry.storage.client;
 
 import com.google.common.collect.Lists;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.schemaregistry.ResultPage;
 import io.pravega.schemaregistry.storage.StoreExceptions;
@@ -20,7 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Base64;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,14 +32,12 @@ import static org.junit.Assert.*;
 
 public class TablesStoreTest {
     private ScheduledExecutorService executor;
-    private WireCommandClient wireCommandClient;
     private TableStore tableStore;
 
     @Before
     public void setup() throws Exception {
         executor = Executors.newScheduledThreadPool(5);
-        wireCommandClient = WireCommandMock.getMock(executor);
-        tableStore = new TableStore(wireCommandClient, executor);
+        tableStore = new TableStore(ClientConfig.builder().build(), executor);
     }
     
     @After
@@ -87,10 +85,6 @@ public class TablesStoreTest {
         // get and verify
         entry = tableStore.getEntry(table, key.getBytes(), String::new).join();
         assertEquals(entry.getRecord(), value);
-
-        // check delete non empty table
-        AssertExtensions.assertFutureThrows("Not Empty", tableStore.deleteTable(table, true), 
-            e -> Exceptions.unwrap(e) instanceof StoreExceptions.DataNotEmptyException);
         
         // remove entry
         tableStore.removeEntry(table, key.getBytes()).join();
@@ -111,14 +105,14 @@ public class TablesStoreTest {
 
         keys = Lists.newArrayList("1", "2", "3");
         Map<byte[], VersionedRecord<byte[]>> entriesToAdd = new HashMap<>();
-        entriesToAdd.put(keys.get(0).getBytes(), new VersionedRecord<>(keys.get(0).getBytes(), Version.NON_EXISTENT));
-        entriesToAdd.put(keys.get(1).getBytes(), new VersionedRecord<>(keys.get(1).getBytes(), Version.NON_EXISTENT));
-        entriesToAdd.put(keys.get(2).getBytes(), new VersionedRecord<>(keys.get(2).getBytes(), Version.NON_EXISTENT));
+        entriesToAdd.put(keys.get(0).getBytes(), new VersionedRecord<>(keys.get(0).getBytes(), Version.NOT_EXISTS));
+        entriesToAdd.put(keys.get(1).getBytes(), new VersionedRecord<>(keys.get(1).getBytes(), Version.NOT_EXISTS));
+        entriesToAdd.put(keys.get(2).getBytes(), new VersionedRecord<>(keys.get(2).getBytes(), Version.NOT_EXISTS));
         tableStore.updateEntries(table, entriesToAdd).join();
 
         // get all keys paginated
-        ByteBuf token = Unpooled.wrappedBuffer(Base64.getDecoder().decode(""));
-        ResultPage<String, ByteBuf> response = tableStore.getKeysPaginated(table, token, 2, String::new).join();
+        ByteBuffer token = ByteBuffer.wrap(new byte[0]);
+        ResultPage<String, ByteBuffer> response = tableStore.getKeysPaginated(table, token, 2, String::new).join();
         assertEquals(response.getList().size(), 2);
         assertTrue(response.getToken().hasArray());
 
@@ -135,17 +129,16 @@ public class TablesStoreTest {
 
         keys = Lists.newArrayList("4", "5", "non existent", "7");
         entriesToAdd = new HashMap<>();
-        entriesToAdd.put(keys.get(0).getBytes(), new VersionedRecord<>(keys.get(0).getBytes(), Version.NON_EXISTENT));
-        entriesToAdd.put(keys.get(1).getBytes(), new VersionedRecord<>(keys.get(1).getBytes(), Version.NON_EXISTENT));
-        entriesToAdd.put(keys.get(3).getBytes(), new VersionedRecord<>(keys.get(3).getBytes(), Version.NON_EXISTENT));
+        entriesToAdd.put(keys.get(0).getBytes(), new VersionedRecord<>(keys.get(0).getBytes(), Version.NOT_EXISTS));
+        entriesToAdd.put(keys.get(1).getBytes(), new VersionedRecord<>(keys.get(1).getBytes(), Version.NOT_EXISTS));
+        entriesToAdd.put(keys.get(3).getBytes(), new VersionedRecord<>(keys.get(3).getBytes(), Version.NOT_EXISTS));
         tableStore.updateEntries(table, entriesToAdd).join();
 
-        List<VersionedRecord<byte[]>> values = tableStore.getEntries(table, keys.stream().map(String::getBytes).collect(Collectors.toList()),
-                false).join();
+        List<VersionedRecord<byte[]>> values = tableStore.getEntries(table, keys.stream().map(String::getBytes).collect(Collectors.toList())).join();
         assertEquals(keys.size(), values.size());
         assertEquals(keys.get(0), new String(values.get(0).getRecord()));
         assertEquals(keys.get(1), new String(values.get(1).getRecord()));
-        assertSame(values.get(2).getVersion().toLong(), Version.NON_EXISTENT.toLong());
+        assertSame(values.get(2).getVersion(), Version.NOT_EXISTS);
         assertEquals(keys.get(3), new String(values.get(3).getRecord()));
     }
 }
