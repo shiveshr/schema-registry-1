@@ -12,6 +12,7 @@ package io.pravega.schemaregistry.storage.impl.group;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.tables.Version;
 import io.pravega.schemaregistry.common.Either;
 import io.pravega.schemaregistry.common.HashUtil;
 import io.pravega.schemaregistry.contract.data.CodecType;
@@ -28,7 +29,6 @@ import io.pravega.schemaregistry.pravegastandalone.PravegaStandaloneUtils;
 import io.pravega.schemaregistry.storage.Etag;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import io.pravega.schemaregistry.storage.client.TableStore;
-import io.pravega.schemaregistry.storage.client.Version;
 import io.pravega.schemaregistry.storage.impl.group.records.NamespaceAndGroup;
 import io.pravega.schemaregistry.storage.impl.group.records.TableKeySerializer;
 import io.pravega.schemaregistry.storage.impl.group.records.TableRecords;
@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.pravega.schemaregistry.storage.impl.group.PravegaKVGroupTable.TABLE_NAME_FORMAT;
 import static io.pravega.schemaregistry.storage.impl.groups.PravegaKeyValueGroups.GROUPS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -114,7 +113,7 @@ public class GroupPravegaTest {
                 GroupsValue::fromBytes).join().getRecord().getState(), GroupsValue.State.Active);
         GroupsValue gv = tableStore.getEntry(GROUPS, new NamespaceAndGroup(null, groupName).toBytes(),
                 GroupsValue::fromBytes).join().getRecord();
-        Version version = tableStore.getEntry(String.format(TABLE_NAME_FORMAT, gv.getId()),
+        Version version = tableStore.getEntry(gv.getId(),
                 new TableKeySerializer().toBytes(new TableRecords.Etag()),
                 x -> TableRecords.fromBytes(TableRecords.Etag.class, x, TableRecords.Etag.class)).join().getVersion();
         assertEquals(etag.etag(), version);
@@ -177,14 +176,14 @@ public class GroupPravegaTest {
         // one schema
         //versionInfo key
         TableRecords.SchemaRecord schemaRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(new TableRecords.SchemaIdKey(0)),
                 x -> TableRecords.fromBytes(TableRecords.SchemaIdKey.class, x,
                         TableRecords.SchemaRecord.class)).join().getRecord();
         assertEquals(anygroup, schemaRecord.getSchemaInfo().getType());
         //schemaInfo key
         TableRecords.SchemaVersionList schemaVersionList = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()), new TableKeySerializer().toBytes(
+                gv.getId(), new TableKeySerializer().toBytes(
                         new TableRecords.SchemaFingerprintKey(
                                 HashUtil.getFingerprint(schemaInfo.getSchemaData().array()))),
                 x -> TableRecords.fromBytes(TableRecords.SchemaFingerprintKey.class, x,
@@ -193,7 +192,7 @@ public class GroupPravegaTest {
         assertEquals(anygroup, schemaVersionList.getVersions().get(0).getType());
         //LatestSchemasKey
         TableRecords.LatestSchemasValue latestSchemaVersionValue = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(LATEST_SCHEMA_VERSION_KEY),
                 x -> TableRecords.fromBytes(TableRecords.LatestSchemasKey.class, x,
                         TableRecords.LatestSchemasValue.class)).join().getRecord();
@@ -217,12 +216,12 @@ public class GroupPravegaTest {
         VersionInfo versionInfo2 = pravegaKeyValueGroups.getGroup(null, groupName).join().getVersion(
                 schemaInfo2, HashUtil.getFingerprint(schemaInfo1.getSchemaData().array())).join();
         //versionInfo key
-        schemaRecord = tableStore.getEntry(String.format(TABLE_NAME_FORMAT, gv.getId()),
+        schemaRecord = tableStore.getEntry(gv.getId(),
                 new TableKeySerializer().toBytes(new TableRecords.SchemaIdKey(versionInfo1.getId())),
                 x -> TableRecords.fromBytes(TableRecords.SchemaIdKey.class, x,
                         TableRecords.SchemaRecord.class)).join().getRecord();
         assertEquals(anygroup, schemaRecord.getSchemaInfo().getType());
-        schemaRecord = tableStore.getEntry(String.format(TABLE_NAME_FORMAT, gv.getId()),
+        schemaRecord = tableStore.getEntry(gv.getId(),
                 new TableKeySerializer().toBytes(new TableRecords.SchemaIdKey(versionInfo2.getId())),
                 x -> TableRecords.fromBytes(TableRecords.SchemaIdKey.class, x,
                         TableRecords.SchemaRecord.class)).join().getRecord();
@@ -230,7 +229,7 @@ public class GroupPravegaTest {
         assertEquals(ImmutableMap.of(), schemaRecord.getSchemaInfo().getProperties());
         // schemaInfokey
         schemaVersionList = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()), new TableKeySerializer().toBytes(
+                gv.getId(), new TableKeySerializer().toBytes(
                         new TableRecords.SchemaFingerprintKey(
                                 HashUtil.getFingerprint(schemaInfo1.getSchemaData().array()))),
                 x -> TableRecords.fromBytes(TableRecords.SchemaFingerprintKey.class, x,
@@ -238,7 +237,7 @@ public class GroupPravegaTest {
         assertEquals(3, schemaVersionList.getVersions().size());
         //LatestSchemasKey
         latestSchemaVersionValue = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(LATEST_SCHEMA_VERSION_KEY),
                 x -> TableRecords.fromBytes(TableRecords.LatestSchemasKey.class, x,
                         TableRecords.LatestSchemasValue.class)).join().getRecord();
@@ -323,7 +322,7 @@ public class GroupPravegaTest {
         VersionInfo versionInfo1 = pravegaKeyValueGroups.getGroup(null, groupName).join().getVersion(
                 schemaInfo1, HashUtil.getFingerprint(schemaInfo1.getSchemaData().array())).join();
         TableRecords.SchemaVersionList schemaVersionList = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()), new TableKeySerializer().toBytes(
+                gv.getId(), new TableKeySerializer().toBytes(
                         new TableRecords.SchemaFingerprintKey(
                                 HashUtil.getFingerprint(schemaInfo.getSchemaData().array()))),
                 x -> TableRecords.fromBytes(TableRecords.SchemaFingerprintKey.class, x,
@@ -347,7 +346,7 @@ public class GroupPravegaTest {
                 GroupsValue::fromBytes).join().getRecord();
         pravegaKeyValueGroups.getGroup(null, groupName).join().addCodecType(new CodecType("gzip")).join();
         TableRecords.CodecTypesListValue codecTypesListValue = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(CODECS_KEY),
                 x -> TableRecords.fromBytes(
                         TableRecords.CodecTypesKey.class, x,
@@ -376,7 +375,7 @@ public class GroupPravegaTest {
         pravegaKeyValueGroups.getGroup(null, groupName).join().addCodecType(new CodecType("gzip")).join();
         pravegaKeyValueGroups.getGroup(null, groupName).join().addCodecType(new CodecType("snappy")).join();
         codecTypeList = pravegaKeyValueGroups.getGroup(null, groupName).join().getCodecTypes().join();
-        List<String> codecTypes = tableStore.getEntry(String.format(TABLE_NAME_FORMAT, gv.getId()),
+        List<String> codecTypes = tableStore.getEntry(gv.getId(),
                 new TableKeySerializer().toBytes(CODECS_KEY),
                 x -> TableRecords.fromBytes(
                         TableRecords.CodecTypesKey.class, x,
@@ -415,7 +414,7 @@ public class GroupPravegaTest {
         TableRecords.EncodingInfoRecord encodingInfoRecord = new TableRecords.EncodingInfoRecord(versionInfo,
                 "gzip");
         TableRecords.EncodingIdRecord encodingIdRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(encodingInfoRecord),
                 x -> TableRecords.fromBytes(
                         TableRecords.EncodingInfoRecord.class, x,
@@ -492,7 +491,7 @@ public class GroupPravegaTest {
         TableRecords.EncodingInfoRecord encodingInfoRecord = new TableRecords.EncodingInfoRecord(versionInfo,
                 "gzip");
         TableRecords.EncodingIdRecord encodingIdRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(encodingInfoRecord),
                 x -> TableRecords.fromBytes(
                         TableRecords.EncodingInfoRecord.class, x,
@@ -535,7 +534,7 @@ public class GroupPravegaTest {
                 null, groupName).join().getLatestSchemaVersion().join();
         assertEquals(anygroup1, schemaWithVersion.getSchemaInfo().getType());
         TableRecords.LatestSchemasValue latestSchemaVersionValue = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(LATEST_SCHEMA_VERSION_KEY),
                 x -> TableRecords.fromBytes(TableRecords.LatestSchemasKey.class, x,
                         TableRecords.LatestSchemasValue.class)).join().getRecord();
@@ -607,7 +606,7 @@ public class GroupPravegaTest {
         pravegaKeyValueGroups.getGroup(null, groupName).join().updateValidationPolicy(
                 Compatibility.forward(), etag).join();
         TableRecords.ValidationRecord validationRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(VALIDATION_POLICY_KEY), x -> TableRecords.fromBytes(
                         TableRecords.ValidationPolicyKey.class, x,
                         TableRecords.ValidationRecord.class)).join().getRecord();
@@ -633,12 +632,12 @@ public class GroupPravegaTest {
         GroupProperties groupProperties1 = pravegaKeyValueGroups.getGroup(null,
                 groupName).join().getGroupProperties().join();
         TableRecords.ValidationRecord validationRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(VALIDATION_POLICY_KEY), x -> TableRecords.fromBytes(
                         TableRecords.ValidationPolicyKey.class, x,
                         TableRecords.ValidationRecord.class)).join().getRecord();
         TableRecords.GroupPropertiesRecord groupPropertiesRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(GROUP_PROPERTY_KEY),
                 x -> TableRecords.fromBytes(
                         TableRecords.GroupPropertyKey.class, x,
@@ -680,7 +679,7 @@ public class GroupPravegaTest {
         TableRecords.VersionDeletedRecord versionDeletedRecordKey = new TableRecords.VersionDeletedRecord(
                 versionInfo.getId());
         TableRecords.VersionDeletedRecord versionDeletedRecord = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(versionDeletedRecordKey), x -> TableRecords.fromBytes(
                         TableRecords.VersionDeletedRecord.class, x,
                         TableRecords.VersionDeletedRecord.class)).join().getRecord();
@@ -726,7 +725,7 @@ public class GroupPravegaTest {
                 versionInfo1.getId()).join();
         assertEquals(schemaInfo, schemaInfo1);
         TableRecords.TableValue tableValue = tableStore.getEntry(
-                String.format(TABLE_NAME_FORMAT, gv.getId()),
+                gv.getId(),
                 new TableKeySerializer().toBytes(new TableRecords.SchemaIdKey(versionInfo1.getId())),
                 x -> TableRecords.fromBytes(
                         TableRecords.SchemaIdKey.class, x, TableRecords.SchemaRecord.class)).join().getRecord();

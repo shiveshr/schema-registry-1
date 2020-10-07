@@ -37,8 +37,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class PravegaKeyValueGroups implements Groups<Version> {
-    public static final String GROUPS = TableStore.SCHEMA_REGISTRY_SCOPE + "/groups/0";
-    public static final ByteBuffer EMPTY_TOKEN = ByteBuffer.wrap(new byte[0]);
+    public static final String GROUPS = "groups";
+    private static final ByteBuffer EMPTY_TOKEN = ByteBuffer.wrap(new byte[0]);
 
     private final TableStore tableStore;
     private final ScheduledExecutorService executor;
@@ -157,7 +157,10 @@ public class PravegaKeyValueGroups implements Groups<Version> {
 
     private <T> CompletableFuture<T> withCreateGroupsTableIfAbsent(Supplier<CompletableFuture<T>> supplier) {
         return Futures.exceptionallyComposeExpecting(supplier.get(),
-                e -> Exceptions.unwrap(e) instanceof StoreExceptions.DataContainerNotFoundException,
+                e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    return unwrap instanceof StoreExceptions.DataContainerNotFoundException;
+                },
                 () -> tableStore.createTable(GROUPS).thenCompose(v -> supplier.get()));
     }
 

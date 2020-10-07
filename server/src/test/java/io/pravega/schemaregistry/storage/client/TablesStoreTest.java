@@ -48,8 +48,8 @@ public class TablesStoreTest {
     @Test
     public void testTables() {
         // create table
-        String table = "schemaregistry/table";
-        tableStore.createTable(table).join();
+        String table = "table";
+        tableStore.createTable(table);
         String key = "key";
         String value = "value";
         byte[] valueBytes = value.getBytes();
@@ -134,7 +134,7 @@ public class TablesStoreTest {
         entriesToAdd.put(keys.get(3).getBytes(), new VersionedRecord<>(keys.get(3).getBytes(), Version.NOT_EXISTS));
         tableStore.updateEntries(table, entriesToAdd).join();
 
-        List<VersionedRecord<byte[]>> values = tableStore.getEntries(table, keys.stream().map(String::getBytes).collect(Collectors.toList())).join();
+        List<VersionedRecord<byte[]>> values = tableStore.getEntries(table, keys.stream().map(String::getBytes).collect(Collectors.toList()), false).join();
         assertEquals(keys.size(), values.size());
         assertEquals(keys.get(0), new String(values.get(0).getRecord()));
         assertEquals(keys.get(1), new String(values.get(1).getRecord()));

@@ -135,18 +135,25 @@ public class SchemaRegistryResourceTest extends JerseyTest {
                                 ImmutableMap.<String, String>builder().build()).serializationFormat(
                                 SerializationFormat.Avro).compatibility(Compatibility.forward()).build()));
         doAnswer(x -> {
-            return CompletableFuture.completedFuture(new Boolean(Boolean.TRUE));
+            return CompletableFuture.completedFuture(true);
         }).when(service).createGroup(any(), anyString(), any());
         Response response = target(GROUPS).request().async().post(
                 Entity.entity(createGroupRequest, MediaType.APPLICATION_JSON)).get();
         assertEquals(201, response.getStatus());
         // Conflict
         doAnswer(x -> {
-            return CompletableFuture.completedFuture(new Boolean(Boolean.FALSE));
+            return CompletableFuture.completedFuture(false);
         }).when(service).createGroup(any(), anyString(), any());
         response = target(GROUPS).request().async().post(
                 Entity.entity(createGroupRequest, MediaType.APPLICATION_JSON)).get();
         assertEquals(409, response.getStatus());
+        //IllegalArgumentException
+        doAnswer(x ->
+                Futures.failedFuture(new IllegalArgumentException())
+        ).when(service).createGroup(any(), anyString(), any());
+        response = target(GROUPS).request().async().post(
+                Entity.entity(createGroupRequest, MediaType.APPLICATION_JSON)).get();
+        assertEquals(400, response.getStatus());
         // Runtime Exception
         doAnswer(x ->
                 Futures.failedFuture(new RuntimeException())

@@ -41,7 +41,7 @@ import java.util.stream.IntStream;
 import static io.pravega.schemaregistry.storage.impl.schemas.SchemaRecords.*;
 
 public class PravegaKeyValueSchemas implements Schemas<Version> {
-    private static final String SCHEMAS = TableStore.SCHEMA_REGISTRY_SCOPE + "/schemas/0";
+    private static final String SCHEMAS = "schemas";
     private static final KeySerializer KEY_SERIALIZER = new KeySerializer();
 
     private final TableStore tableStore;
@@ -205,7 +205,10 @@ public class PravegaKeyValueSchemas implements Schemas<Version> {
 
     private <T> CompletableFuture<T> withCreateSchemasTableIfAbsent(Supplier<CompletableFuture<T>> supplier) {
         return Futures.exceptionallyComposeExpecting(supplier.get(),
-                e -> Exceptions.unwrap(e) instanceof StoreExceptions.DataContainerNotFoundException,
+                e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    return unwrap instanceof StoreExceptions.DataContainerNotFoundException;
+                },
                 () -> tableStore.createTable(SCHEMAS).thenCompose(v -> supplier.get()));
     }
 
