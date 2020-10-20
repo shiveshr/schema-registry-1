@@ -75,12 +75,16 @@ public class GroupPravegaTest {
         groupName = "mygroup";
         executor = Executors.newScheduledThreadPool(5);
         tableStore = new TableStore(clientConfig, executor);
+        tableStore.startAsync();
+        tableStore.awaitRunning();
         pravegaKeyValueGroups = new PravegaKeyValueGroups(tableStore, executor);
     }
 
     @After
     public void tearDown() {
         pravegaKeyValueGroups.deleteGroup(null, groupName).join();
+        tableStore.stopAsync();
+        tableStore.awaitRunning();
         executor.shutdownNow();
     }
 

@@ -34,7 +34,6 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.Version;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
-import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
@@ -73,6 +72,8 @@ public class TableStore extends AbstractService {
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(5).toMillis();
     private static final int NUM_OF_RETRIES = 15; // approximately 1 minute worth of retries
     private static final KeyValueTableConfiguration CONFIG = KeyValueTableConfiguration.builder().partitionCount(1).build();
+    private static final TableEntry<ByteBuffer, ByteBuffer> NOT_EXISTS = TableEntry.notExists(ByteBuffer.wrap(new byte[0]), ByteBuffer.wrap(new byte[0]));
+    private static final String KEY_FAMILY = "keys";
     private final int numOfRetries;
     private final ScheduledExecutorService executor;
     /**
@@ -145,7 +146,7 @@ public class TableStore extends AbstractService {
     }
 
     public CompletableFuture<Void> addNewEntryIfAbsent(String tableName, byte[] key, @NonNull byte[] value) {
-        return Futures.toVoid(getTable(tableName).thenCompose(table -> table.putIfAbsent("", ByteBuffer.wrap(key), ByteBuffer.wrap(value))
+        return Futures.toVoid(getTable(tableName).thenCompose(table -> table.putIfAbsent(KEY_FAMILY, ByteBuffer.wrap(key), ByteBuffer.wrap(value))
                                                                            .exceptionally(e -> {
                           // if we get conditional update exception, it means the key exists and we should ignore it.
                           if (e != null && !(Exceptions.unwrap(e) instanceof ConditionalTableUpdateException)) {
@@ -170,8 +171,6 @@ public class TableStore extends AbstractService {
     }
 
     public CompletableFuture<Version> updateEntry(String tableName, byte[] key, byte[] value, Version ver) {
-        getTable(tableName).thenCompose(table -> table.replace("", ByteBuffer.wrap(key), ByteBuffer.wrap(value), ver));
-
         return updateEntries(tableName, Collections.singletonMap(key, new VersionedRecord<>(value, ver))).thenApply(list -> list.get(0));
     }
     
@@ -183,7 +182,7 @@ public class TableStore extends AbstractService {
                     TableEntry.versioned(ByteBuffer.wrap(x.getKey()), x.getValue().getVersion(), ByteBuffer.wrap(x.getValue().getRecord()));
         }).collect(Collectors.toList());
         
-        return getTable(tableName).thenCompose(table -> table.replaceAll("", entries)
+        return getTable(tableName).thenCompose(table -> table.replaceAll(KEY_FAMILY, entries)
                                                             .exceptionally(t -> {
                                       String errorMessage = String.format("update entry on %s failed", tableName);
                                       Throwable cause = Exceptions.unwrap(t);
@@ -209,29 +208,31 @@ public class TableStore extends AbstractService {
 
     public CompletableFuture<List<VersionedRecord<byte[]>>> getEntries(String tableName, List<byte[]> tableKeys, boolean throwOnNotFound) {
         log.info("get entries called for : {} key : {}", tableName, tableKeys);
-        
+        if (tableKeys.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
         List<ByteBuffer> keys = tableKeys.stream().map(ByteBuffer::wrap).collect(Collectors.toList());
-        return getTable(tableName).thenCompose(table -> table.getAll("", keys)
+        return getTable(tableName).thenCompose(table -> table.getAll(KEY_FAMILY, keys)
                                                             .thenApply(list -> list.stream().map(x -> {
-                    if (x.getKey().getVersion().equals(Version.NOT_EXISTS) && throwOnNotFound) {
+                    TableEntry<ByteBuffer, ByteBuffer> entry = x != null ? x : NOT_EXISTS;
+                    if (entry.getKey().getVersion().equals(Version.NOT_EXISTS) && throwOnNotFound) {
                             throw StoreExceptions.create(StoreExceptions.Type.DATA_NOT_FOUND, "key not found");
                     } else {
-                        return new VersionedRecord<>(getArray(x.getValue()), x.getKey().getVersion());
+                        return new VersionedRecord<>(getArray(entry.getValue()), entry.getKey().getVersion());
                     }
                 }).collect(Collectors.toList())));
     }
     
     public CompletableFuture<Void> removeEntry(String tableName, byte[] key) {
         log.trace("remove entry called for : {} key : {}", tableName, key);
-        List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(key));
-        return getTable(tableName).thenCompose(table -> table.remove("", ByteBuffer.wrap(key)));
+        return getTable(tableName).thenCompose(table -> table.remove(KEY_FAMILY, ByteBuffer.wrap(key)));
     }
 
     public <K> CompletableFuture<List<K>> getAllKeys(String tableName, Function<byte[], K> fromBytesKey) {
         List<K> keys = new LinkedList<>();
         return getTable(tableName)
                 .thenCompose(table -> {
-                    val iterator = table.keyIterator("", 1000, null);
+                    val iterator = table.keyIterator(KEY_FAMILY, 1000, null);
 
                     return iterator.collectRemaining(x -> {
                         x.getItems().forEach(y -> {
@@ -248,7 +249,7 @@ public class TableStore extends AbstractService {
                                                                               Function<byte[], T> fromBytesValue) {
         List<VersionedEntry<K, T>> entries = new LinkedList<>();
         return getTable(tableName).thenCompose(table -> {
-            val iterator = table.entryIterator("", 1000, null);
+            val iterator = table.entryIterator(KEY_FAMILY, 1000, null);
 
             return iterator.collectRemaining(x -> {
                 x.getItems().forEach(y -> {
@@ -292,7 +293,7 @@ public class TableStore extends AbstractService {
         IteratorState token = continuationToken == null || continuationToken.remaining() == 0 ? null : 
                 IteratorState.fromBytes(continuationToken);
         return getTable(tableName)
-                .thenCompose(table -> table.keyIterator("", limit, token).getNext()
+                .thenCompose(table -> table.keyIterator(KEY_FAMILY, limit, token).getNext()
                                        .thenApply(x -> x == null ? new ResultPage<>(Collections.emptyList(), ByteBuffer.wrap(new byte[0])) : 
                                                new ResultPage<>(x.getItems().stream().map(y -> {
                                            byte[] key = getArray(y.getKey());
@@ -308,7 +309,7 @@ public class TableStore extends AbstractService {
                 IteratorState.fromBytes(continuationToken);
 
         return getTable(tableName)
-                .thenCompose(table -> table.entryIterator("", limit, token).getNext()
+                .thenCompose(table -> table.entryIterator(KEY_FAMILY, limit, token).getNext()
                                            .thenApply(x -> x == null ? new ResultPage<>(Collections.emptyList(), ByteBuffer.wrap(new byte[0])) : 
                                                    new ResultPage<>(x.getItems().stream().map(y -> {
                                                byte[] key = getArray(y.getKey().getKey());

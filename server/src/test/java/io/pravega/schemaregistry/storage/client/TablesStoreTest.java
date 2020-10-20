@@ -14,12 +14,14 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.schemaregistry.ResultPage;
+import io.pravega.schemaregistry.pravegastandalone.PravegaStandaloneUtils;
 import io.pravega.schemaregistry.storage.StoreExceptions;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
@@ -35,21 +37,29 @@ public class TablesStoreTest {
     private TableStore tableStore;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
+        PravegaStandaloneUtils pravegaStandaloneUtils = PravegaStandaloneUtils.startPravega();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(
+                URI.create(pravegaStandaloneUtils.getControllerURI())).build();
+
         executor = Executors.newScheduledThreadPool(5);
-        tableStore = new TableStore(ClientConfig.builder().build(), executor);
+        tableStore = new TableStore(clientConfig, executor);
+        tableStore.startAsync();
+        tableStore.awaitRunning();
     }
     
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
+        tableStore.stopAsync();
+        tableStore.awaitTerminated();
         executor.shutdown();
     }
 
-    @Test
+    @Test(timeout = 100000L)
     public void testTables() {
         // create table
         String table = "table";
-        tableStore.createTable(table);
+        tableStore.createTable(table).join();
         String key = "key";
         String value = "value";
         byte[] valueBytes = value.getBytes();
